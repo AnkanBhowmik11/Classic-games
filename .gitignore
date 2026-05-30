@@ -1,0 +1,19 @@
+# Python scripts (local-only puzzle generators)
+*.py
+*.pyc
+__pycache__/
+
+# Logs
+*.txt
+gen_log.txt
+gen2_log.txt
+
+# Intermediate puzzle files (only keep the verified one)
+puzzles_out.js
+puzzles_output.js
+puzzles_utf8.js
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
