@@ -508,15 +508,34 @@ function buildBoard() {
   checkErrors();
 }
 
+function isValidPlacement(r, c, n) {
+  for(let i=0; i<9; i++) {
+    if (i !== c && GAME.board[r][i] === n) return false;
+    if (i !== r && GAME.board[i][c] === n) return false;
+  }
+  let br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+  for(let i=0; i<3; i++) {
+    for(let j=0; j<3; j++) {
+      if ((br+i !== r || bc+j !== c) && GAME.board[br+i][bc+j] === n) return false;
+    }
+  }
+  return true;
+}
+
 function handleCellTap(r, c) {
   if (GAME.frozen) return;
   
   GAME.selR = r; GAME.selC = c;
   
   if (!GAME.fixed[r][c]) {
-    let v = GAME.board[r][c];
-    v = (v + 1) % 10;
-    inputNum(r, c, v);
+    let startV = GAME.board[r][c];
+    for (let step = 1; step <= 9; step++) {
+      let nextV = (startV + step) % 10;
+      if (nextV === 0 || isValidPlacement(r, c, nextV)) {
+        inputNum(r, c, nextV);
+        break;
+      }
+    }
   } else {
     // Just highlight matching numbers
     updateHighlights();
@@ -579,17 +598,7 @@ function inputNum(r, c, n, isUndo = false) {
   if (GAME.frozen || GAME.fixed[r][c]) return;
   
   if (n !== 0 && !isUndo) {
-    // Strictly prevent invalid moves from being placed
-    for(let i=0; i<9; i++) {
-      if (i !== c && GAME.board[r][i] === n) return;
-      if (i !== r && GAME.board[i][c] === n) return;
-    }
-    let br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
-    for(let i=0; i<3; i++) {
-      for(let j=0; j<3; j++) {
-        if ((br+i !== r || bc+j !== c) && GAME.board[br+i][bc+j] === n) return;
-      }
-    }
+    if (!isValidPlacement(r, c, n)) return;
   }
   
   if (!isUndo) {
