@@ -60,7 +60,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .chess-layout {
     grid-template-columns: 1fr;
   }
-  .chess-panel-black { order: -1; }
 }
 .chess-panel {
   background: var(--surface);
@@ -189,6 +188,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .move-history-wrap { display: none; }
   .chess-board-outer { padding: 8px; border-radius: 12px; }
   .chess-coord-side, .chess-coord-bot { display: none; }
+  .chess-panel-black { order: -1; }
+  .chess-panel:not(.chess-panel-black) { order: 1; }
 }
 .chess-board {
   display: grid;
@@ -260,30 +261,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transition: none;
 }
 
-.chess-status-bar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.75rem 1.25rem;
-  box-shadow: var(--sh);
-  margin-top: 1rem;
-  justify-content: center;
+.chess-panel.active-turn {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px rgba(45, 106, 79, 0.2);
 }
-.status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: statusPulse 1.5s ease-in-out infinite;
-}
-@keyframes statusPulse {
-  0%,100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
-}
-.status-text { font-weight: 600; font-size: 0.95rem; }
+
 
 .chess-controls {
   display: flex;
@@ -423,7 +405,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   </div>
   <div class="chess-layout">
     <!-- White panel (bottom) -->
-    <div class="chess-panel">
+    <div class="chess-panel chess-panel-white" id="whitePanel">
       <div class="player-info-row">
         <div class="player-name" id="whitePlayerName">
           <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#f0d9b5" stroke="#b58863" stroke-width="1.5"/></svg>
@@ -458,10 +440,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
           <div class="chess-coord-bot" id="coordBot"></div>
         </div>
       </div>
-      <div class="chess-status-bar">
-        <div class="status-indicator" id="chessStatusDot"></div>
-        <div class="status-text" id="chessStatusText">White to move</div>
-      </div>
       <div class="chess-controls">
         <button class="chess-btn" onclick="chessUndo()">
           <svg viewBox="0 0 16 16" fill="none"><path d="M3 8a5 5 0 1 0 1-3" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/><path d="M1 5l2-2 2 2" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -478,7 +456,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
       </div>
     </div>
     <!-- Black panel (top) -->
-    <div class="chess-panel chess-panel-black">
+    <div class="chess-panel chess-panel-black" id="blackPanel">
       <div class="player-info-row">
         <div class="player-name" id="blackPlayerName">
           <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="#3d3d3d" stroke="#1a1a1a" stroke-width="1.5"/></svg>
@@ -1265,12 +1243,14 @@ function findKing(board, color) {
 function updateChessStatus() {
   const allMoves = getAllLegalMoves(CHESS.board, CHESS.turn, CHESS.castling, CHESS.enPassant);
   const inCheck = isInCheck(CHESS.board, CHESS.turn, CHESS.castling, CHESS.enPassant);
-  const statusText = document.getElementById('chessStatusText');
-  const statusDot = document.getElementById('chessStatusDot');
 
   // Update active clock highlight
   document.getElementById('whiteClock').classList.toggle('active-clock', CHESS.turn === 'w');
   document.getElementById('blackClock').classList.toggle('active-clock', CHESS.turn === 'b');
+  
+  // Update active panel border
+  document.getElementById('whitePanel').classList.toggle('active-turn', CHESS.turn === 'w');
+  document.getElementById('blackPanel').classList.toggle('active-turn', CHESS.turn === 'b');
 
   if (allMoves.length === 0) {
     CHESS.gameOver = true;
@@ -1279,12 +1259,8 @@ function updateChessStatus() {
 
     if (inCheck) {
       const winner = CHESS.turn === 'w' ? 'Black' : 'White';
-      statusText.innerText = `Checkmate! ${winner} wins`;
-      statusDot.style.background = '#e76f51';
       setTimeout(() => showChessEndModal('checkmate', winner), 800);
     } else {
-      statusText.innerText = 'Stalemate! Draw';
-      statusDot.style.background = '#e9c46a';
       setTimeout(() => showChessEndModal('stalemate', null), 800);
     }
     return;
@@ -1294,8 +1270,6 @@ function updateChessStatus() {
   if (CHESS.halfmove >= 100) {
     CHESS.gameOver = true;
     stopChessClock();
-    statusText.innerText = 'Draw by 50-move rule';
-    statusDot.style.background = '#e9c46a';
     setTimeout(() => showChessEndModal('draw', null), 800);
     return;
   }
@@ -1316,8 +1290,6 @@ function updateChessStatus() {
     if ((wTotal === 0 && bTotal === 0) || (wTotal === 1 && bTotal === 0) || (wTotal === 0 && bTotal === 1)) {
       CHESS.gameOver = true;
       stopChessClock();
-      statusText.innerText = 'Draw (Insufficient Material)';
-      statusDot.style.background = '#e9c46a';
       setTimeout(() => showChessEndModal('draw', null), 800);
       return;
     }
@@ -1350,20 +1322,8 @@ function updateChessStatus() {
   if (CHESS.positionMap[fen] >= 3) {
     CHESS.gameOver = true;
     stopChessClock();
-    statusText.innerText = 'Draw by Repetition';
-    statusDot.style.background = '#e9c46a';
     setTimeout(() => showChessEndModal('draw', null), 800);
     return;
-  }
-
-  if (inCheck) {
-    statusText.innerText = (CHESS.turn === 'w' ? 'White' : 'Black') + ' is in Check!';
-    statusDot.style.background = '#e76f51';
-    statusDot.style.animation = 'statusPulse 0.5s ease-in-out infinite';
-  } else {
-    statusText.innerText = (CHESS.turn === 'w' ? 'White' : 'Black') + ' to move';
-    statusDot.style.background = 'var(--accent)';
-    statusDot.style.animation = 'statusPulse 1.5s ease-in-out infinite';
   }
 }
 
@@ -1441,7 +1401,6 @@ function handleTimeout(color) {
   CHESS.gameOver = true;
   stopChessClock();
   const winner = color === 'w' ? 'Black' : 'White';
-  document.getElementById('chessStatusText').innerText = `${winner} wins on time!`;
   setTimeout(() => showChessEndModal('timeout', winner), 800);
 }
 
