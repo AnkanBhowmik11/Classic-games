@@ -633,6 +633,8 @@ function nextLevel() {
 document.addEventListener('DOMContentLoaded', () => {
   initCommon();
   renderLevelSelect();
+  navigate('select');
+  if (typeof USER !== 'undefined' && USER) updateProfileUI();
 });
 </script>
 </body>
