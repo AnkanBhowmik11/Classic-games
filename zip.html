@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zip - Classic Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="common.css">
+<style>
+:root {
+  --bg: #f5f2ec;
+  --surface: #ffffff;
+  --surface2: #eeeae2;
+  --border: #ddd9cf;
+  --cell-line: #c8c3b8;
+  --ink: #1a1814;
+  --ink2: #6b6760;
+  --accent: #2d6a4f;
+  --accent-lt: #d8f3dc;
+  --sh: 0 2px 16px rgba(26,24,20,.08);
+  --sh-lg: 0 8px 40px rgba(26,24,20,.14);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 999;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+/* ── Top Nav ── */
+.topnav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 2rem; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.25rem; text-decoration: none; color: inherit; }
+.logo-icon { width: 28px; height: 28px; background: var(--ink); border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; }
+.logo-icon i { background: var(--bg); border-radius: 2px; }
+
+/* ── Pages ── */
+.page { display: none; padding: 2rem; max-width: 1000px; margin: 0 auto; animation: fade 0.3s ease; }
+.page.active { display: block; }
+@keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Level Select ── */
+.level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+.lvl-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1rem; text-align: center;
+  position: relative; transition: all 0.2s;
+  box-shadow: var(--sh);
+}
+.lvl-card.unlocked { cursor: pointer; }
+.lvl-card.unlocked:hover { transform: translateY(-2px); border-color: var(--accent); }
+.lvl-card.locked { opacity: 0.5; filter: blur(2px); user-select: none; pointer-events: none; }
+.lvl-card h4 { font-size: 1.5rem; margin-bottom: 0.25rem; font-family: 'JetBrains Mono', monospace; }
+.lvl-card .stars { color: #e9c46a; font-size: 1rem; }
+.lvl-card .time { font-size: 0.75rem; color: var(--ink2); }
+.lvl-card.current { border: 2px solid var(--accent); }
+
+/* ── Game Page ── */
+.game-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem;
+}
+.back-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; box-shadow: var(--sh);
+}
+.game-title { font-size: 1.5rem; font-weight: 700; }
+.timer-display {
+  font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: bold;
+  background: var(--surface); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border);
+}
+
+/* Board Layout */
+.game-container {
+  display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+}
+.board-wrap {
+  background: var(--surface); padding: 1.5rem; border-radius: 24px;
+  box-shadow: var(--sh-lg); border: 1px solid var(--border);
+  position: relative;
+  width: 100%; max-width: 500px; box-sizing: border-box;
+}
+.board {
+  display: grid; gap: 2px; background: var(--border);
+  border: 2px solid var(--border); touch-action: none; user-select: none;
+  position: relative;
+  width: 100%; aspect-ratio: 1;
+}
+.cell {
+  width: 100%; height: 100%; background: var(--bg);
+  position: relative; transition: background 0.2s;
+}
+.cell.blocked { background: var(--border); }
+.cell.waypoint { z-index: 10; }
+.cell.waypoint::after {
+  content: attr(data-val);
+  position: absolute; inset: 6px;
+  background: var(--ink); color: #fff;
+  border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; font-size: 1.1rem;
+}
+.cell.waypoint.start::after { background: var(--accent); }
+.cell.waypoint.end::after { background: #e76f51; }
+.cell.active { background: var(--accent-lt); }
+
+.pop-anim::after { animation: bubblePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes bubblePop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.cell.hint-glow { animation: pulse 1s infinite alternate; z-index: 10; border: 2px solid var(--accent); }
+@keyframes pulse { from { box-shadow: 0 0 5px var(--accent); } to { box-shadow: 0 0 20px var(--accent); } }
+.cell.hint-arrow::before {
+  content: "➔"; position: absolute; font-size: 1.5rem; color: var(--accent);
+  left: 50%; top: 50%; 
+  transform: translate(-50%, -50%) rotate(var(--hint-rot, 0deg)); 
+  z-index: 20;
+  pointer-events: none; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes popIn { 
+  from { transform: translate(-50%, -50%) rotate(var(--hint-rot, 0deg)) scale(0); opacity: 0; } 
+  to { transform: translate(-50%, -50%) rotate(var(--hint-rot, 0deg)) scale(1); opacity: 1; } 
+}
+
+/* Connecting lines */
+.path-svg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 5;
+}
+.path-svg path {
+  transition: all 0.1s linear;
+}
+
+/* Controls */
+.controls { display: flex; gap: 1rem; }
+.ctrl-btn {
+  padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--sh); transition: transform 0.1s;
+}
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn.hint { background: #ffe8d6; color: #d08c60; border-color: #ffd7ba; }
+
+@media (max-width: 600px) {
+  .page { padding: 1rem; }
+  .board-wrap { padding: 0.5rem; border-radius: 12px; }
+  .game-header { flex-wrap: wrap; gap: 0.5rem; }
+  .timer-display { font-size: 1.2rem; }
+  .ctrl-btn { padding: 0.5rem 1rem; font-size: 0.9rem; }
+}
+
+/* Win Overlay */
+#winOverlay .modal { text-align: center; }
+.stars-display { font-size: 3rem; color: #e9c46a; margin: 1rem 0; letter-spacing: 5px; }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="index.html" class="logo">
+    <div class="logo-icon"><i></i><i></i><i></i><i></i></div>
+    Classic Games
+  </a>
+  <button class="auth-btn" id="authBtn" onclick="openAuthModal()"></button>
+</header>
+
+<!-- LEVEL SELECT PAGE -->
+<main id="page-select" class="page active">
+  <div class="level-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h2>Zip - Levels</h2>
+    <div style="font-family:'JetBrains Mono',monospace" id="lvlProgress">0/500</div>
+  </div>
+  <div class="level-grid" id="levelGrid"></div>
+</main>
+
+<!-- GAME PAGE -->
+<main id="page-game" class="page">
+  <div class="game-header">
+    <button class="back-btn" onclick="navigate('select')">←</button>
+    <div class="game-title">Level <span id="gameLevelNum"></span></div>
+    <div class="timer-display" id="gameTimer">00:00</div>
+  </div>
+
+  <div class="game-container">
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn hint" id="hintBtn" onclick="useHint()">💡 Hint</button>
+      <button class="ctrl-btn" onclick="undo()">↶ Undo</button>
+      <button class="ctrl-btn" onclick="resetLevel()">↻ Reset</button>
+    </div>
+  </div>
+</main>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="margin:0" id="authTitle">Account</h2>
+      <button onclick="closeAuthModal()" style="font-size:1.5rem">&times;</button>
+    </div>
+    <div id="authLoggedOut">
+      <div class="modal-tabs">
+        <div class="tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</div>
+        <div class="tab" id="tabCreate" onclick="switchAuthTab('create')">Create Account</div>
+      </div>
+      <div id="createFields" style="display:none">
+        <div class="input-group">
+          <label>Display Name</label>
+          <input type="text" id="authName" value="Player">
+        </div>
+      </div>
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" id="authEmail">
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="authPass">
+      </div>
+      <div id="authError" style="color:#e76f51; font-size:0.9rem; margin-bottom:0.5rem"></div>
+      <button class="btn-primary" id="authActionBtn" onclick="submitAuth()">Sign In</button>
+    </div>
+    <div id="authLoggedIn" style="display:none; text-align:center">
+      <p style="font-size:1.2rem; margin-bottom:1rem">Welcome, <strong id="authDisplayName"></strong></p>
+      <div style="background:var(--surface2); padding:1rem; border-radius:12px; margin-bottom:1.5rem; text-align:left;">
+        <div style="margin-bottom:0.5rem; font-size:1.1rem;"><strong>Total Stars:</strong> <span id="profileStars" style="font-family:'JetBrains Mono',monospace; color:#e76f51; font-weight:bold;">0</span> ⭐</div>
+        <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+        <label style="font-weight:600; display:block; margin-bottom:0.5rem;">Daily Time Limit (minutes)</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input type="number" id="dailyLimitInput" min="1" value="60" style="width:100%; padding:0.5rem; border-radius:8px; border:1px solid var(--border);">
+          <button class="btn-primary" style="margin-top:0; width:auto; padding:0.5rem 1rem;" onclick="saveDailyLimit()">Save</button>
+        </div>
+      </div>
+      <button class="btn-primary" style="background:#e76f51" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME LIMIT OVERLAY -->
+<div class="modal-overlay" id="timeLimitOverlay">
+  <div class="modal" style="text-align:center">
+    <h2 style="margin-bottom:1rem">Time's Up! ⏰</h2>
+    <p style="margin-bottom:1.5rem">You have reached your daily limit of <strong id="limitDisplay">60</strong> minutes.</p>
+    <p style="color:var(--ink2)">Come back tomorrow to play more, or adjust your limit in the Profile.</p>
+    <button class="btn-primary" style="margin-top:1.5rem" onclick="document.getElementById('timeLimitOverlay').classList.remove('active'); window.location.href='index.html'">Go Home</button>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="modal-overlay" id="winOverlay">
+  <div class="modal">
+    <h2>Level Complete!</h2>
+    <div class="stars-display" id="winStars">⭐⭐⭐</div>
+    <p style="margin-bottom:1rem; font-family:'JetBrains Mono',monospace">Time: <span id="winTime"></span></p>
+    <button class="btn-primary" onclick="nextLevel()">Next Level →</button>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script src="puzzles_utf8.js"></script>
+<script>
+let GAME = {
+  idx: 0, puzzle: null, path: [], state: [], size: 0,
+  timer: 0, timerInt: null, hints: 0, frozen: false
+};
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  if (page === 'select') {
+      renderLevelSelect();
+      if(GAME.timerInt) clearInterval(GAME.timerInt);
+  }
+}
+
+function getHighestUnlocked() {
+  let h = -1;
+  const pData = STORE.progress.zip || STORE.progress;
+  for (let i = 0; i < PUZZLES.length; i++) {
+    if (pData[i] && pData[i].stars > 0) h = i;
+    else break;
+  }
+  return h + 1; // current level to play
+}
+
+function renderLevelSelect() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  
+  const highest = getHighestUnlocked();
+  let doneCount = 0;
+  
+  const pData = STORE.progress.zip || STORE.progress;
+  for (let i = 0; i < PUZZLES.length; i++) {
+    if (pData[i] && pData[i].stars > 0) doneCount++;
+  }
+  
+  const maxDisplay = Math.min(PUZZLES.length, highest + 11);
+  
+  for (let i = 0; i < maxDisplay; i++) {
+    const p = PUZZLES[i];
+    const data = pData[i];
+    const isUnlocked = i <= highest;
+    const isDone = data && data.stars > 0;
+    
+    const card = document.createElement('div');
+    card.className = `lvl-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+    if (i === highest) card.classList.add('current');
+    
+    let sub = 'Locked';
+    if (isUnlocked) sub = `0 / ${p.dots.length}`;
+    if (isDone) {
+      sub = `<span class="stars">${'⭐'.repeat(data.stars)}</span>`;
+      card.style.borderColor = 'var(--accent)';
+      card.style.background = 'var(--accent-lt)';
+    }
+    
+    card.innerHTML = `<h4>${i + 1}</h4><div>${sub}</div>`;
+    if (isDone) card.innerHTML += `<div class="time">${formatTime(data.time)}</div>`;
+    
+    if (isUnlocked) card.onclick = () => startGame(i);
+    grid.appendChild(card);
+  }
+  
+  document.getElementById('lvlProgress').innerText = `${doneCount}/${PUZZLES.length}`;
+}
+
+function startGame(idx) {
+  const todayStr = getTodayDate();
+  const tmins = Math.floor((STORE.sessions[todayStr]||0)/60);
+  const limit = STORE.settings.dailyLimit || 60;
+  if (tmins >= limit && limit > 0) {
+    document.getElementById('limitDisplay').innerText = limit;
+    document.getElementById('timeLimitOverlay').classList.add('active');
+    return; // block play
+  }
+
+  GAME.idx = idx;
+  GAME.puzzle = PUZZLES[idx];
+  GAME.size = GAME.puzzle.size;
+  GAME.path = [];
+  GAME.state = new Array(GAME.size * GAME.size).fill(0);
+  GAME.frozen = false;
+  GAME.timer = 0;
+  GAME.hints = 0;
+  
+  document.getElementById('gameLevelNum').innerText = idx + 1;
+  
+  buildBoard();
+  startTimer();
+  navigate('game');
+}
+
+function buildBoard() {
+  const board = document.getElementById('board');
+  const size = GAME.size;
+  board.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  board.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+  board.innerHTML = '';
+  document.querySelectorAll('.path-line').forEach(l => l.remove());
+  
+  const bs = GAME.puzzle.blocked || [];
+  const ds = GAME.puzzle.dots;
+  
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${r}-${c}`;
+      cell.dataset.r = r; cell.dataset.c = c;
+      
+      if (bs.some(b => b[0]===r && b[1]===c)) cell.classList.add('blocked');
+      
+      const dotIdx = ds.findIndex(d => d[0]===r && d[1]===c);
+      if (dotIdx !== -1) {
+        cell.classList.add('waypoint');
+        cell.dataset.val = dotIdx + 1;
+        if (dotIdx === 0) cell.classList.add('start');
+        if (dotIdx === ds.length - 1) cell.classList.add('end');
+      }
+      
+      cell.onpointerdown = (e) => { e.preventDefault(); handleDown(r, c); };
+      cell.onpointerenter = (e) => { if (e.buttons > 0) handleDown(r, c); };
+      
+      board.appendChild(cell);
+    }
+  }
+  drawPath();
+}
+
+function handleDown(r, c) {
+  if (GAME.frozen) return;
+  const p = GAME.puzzle;
+  const cellId = `cell-${r}-${c}`;
+  const el = document.getElementById(cellId);
+  if (el.classList.contains('blocked')) return;
+  
+  if (GAME.path.length === 0) {
+    if (r === p.dots[0][0] && c === p.dots[0][1]) pushPath(r, c);
+    return;
+  }
+  
+  const last = GAME.path[GAME.path.length - 1];
+  if (last[0] === r && last[1] === c) return;
+  
+  if (GAME.path.length >= 2) {
+    const prev = GAME.path[GAME.path.length - 2];
+    if (prev[0] === r && prev[1] === c) { popPath(); return; }
+  }
+  
+  if (Math.abs(last[0]-r) + Math.abs(last[1]-c) !== 1) return;
+  if (GAME.state[r * GAME.size + c]) return;
+  
+  const dotIdx = p.dots.findIndex(d => d[0]===r && d[1]===c);
+  if (dotIdx !== -1) {
+    const expected = getNextExpectedWaypoint();
+    if (dotIdx !== expected) return;
+  }
+  
+  pushPath(r, c);
+}
+
+function getNextExpectedWaypoint() {
+  let max = 0;
+  GAME.path.forEach(pos => {
+    const d = GAME.puzzle.dots.findIndex(dt => dt[0]===pos[0] && dt[1]===pos[1]);
+    if (d > max) max = d;
+  });
+  return max + 1;
+}
+
+function pushPath(r, c) {
+  GAME.path.push([r, c]);
+  GAME.state[r * GAME.size + c] = 1;
+  const el = document.getElementById(`cell-${r}-${c}`);
+  el.classList.add('active');
+  el.classList.remove('hint-glow', 'hint-arrow');
+  if (el.classList.contains('waypoint')) {
+    el.classList.remove('pop-anim');
+    void el.offsetWidth;
+    el.classList.add('pop-anim');
+  }
+  drawPath();
+  checkWin();
+}
+
+function popPath() {
+  if (GAME.path.length === 0) return;
+  const [r, c] = GAME.path.pop();
+  GAME.state[r * GAME.size + c] = 0;
+  document.getElementById(`cell-${r}-${c}`).classList.remove('active');
+  drawPath();
+}
+
+function undo() { popPath(); }
+function resetLevel() {
+  while (GAME.path.length > 0) popPath();
+  document.querySelectorAll('.hint-glow').forEach(e => e.classList.remove('hint-glow', 'hint-arrow'));
+}
+
+function drawPath() {
+  const board = document.getElementById('board');
+  let svg = document.getElementById('pathSvg');
+  if (!svg) {
+    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.id = "pathSvg";
+    svg.classList.add("path-svg");
+    board.appendChild(svg);
+  }
+  if (GAME.path.length === 0) { svg.innerHTML = ''; return; }
+  
+  const vbSize = 1000;
+  svg.setAttribute("viewBox", `0 0 ${vbSize} ${vbSize}`);
+  const step = vbSize / GAME.size;
+  const offset = step / 2;
+  
+  let d = "";
+  for (let i = 0; i < GAME.path.length; i++) {
+    const [r, c] = GAME.path[i];
+    const x = c * step + offset;
+    const y = r * step + offset;
+    d += (i === 0 ? `M ${x} ${y} ` : `L ${x} ${y} `);
+  }
+  const sw = step * 0.3;
+  svg.innerHTML = `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" />`;
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function startTimer() {
+  if (GAME.timerInt) clearInterval(GAME.timerInt);
+  const el = document.getElementById('gameTimer');
+  GAME.timerInt = setInterval(() => {
+    if (GAME.frozen) return;
+    GAME.timer++;
+    el.innerText = formatTime(GAME.timer);
+  }, 1000);
+}
+
+function getExpectedTime() {
+  const s = GAME.size;
+  if (s <= 5) return 90;
+  if (s === 6) return 150;
+  if (s === 7) return 240;
+  return 360;
+}
+
+function useHint() {
+  const btn = document.getElementById('hintBtn');
+  if (btn.disabled || GAME.frozen || !GAME.puzzle.solution) return;
+  
+  let matchLen = 0;
+  for (let i = 0; i < GAME.path.length; i++) {
+    if (i < GAME.puzzle.solution.length && 
+        GAME.path[i][0] === GAME.puzzle.solution[i][0] && 
+        GAME.path[i][1] === GAME.puzzle.solution[i][1]) {
+      matchLen++;
+    } else break;
+  }
+  
+  while (GAME.path.length > matchLen) popPath();
+  
+  if (matchLen < GAME.puzzle.solution.length) {
+    const next = GAME.puzzle.solution[matchLen];
+    const el = document.getElementById(`cell-${next[0]}-${next[1]}`);
+    if (el) {
+        el.classList.add('hint-glow', 'hint-arrow');
+        let rot = 0;
+        if (matchLen > 0) {
+            const prev = GAME.puzzle.solution[matchLen - 1];
+            if (next[0] < prev[0]) rot = -90;
+            else if (next[0] > prev[0]) rot = 90;
+            else if (next[1] < prev[1]) rot = 180;
+            else rot = 0;
+        }
+        el.style.setProperty('--hint-rot', rot + 'deg');
+    }
+  }
+  
+  GAME.hints++;
+  btn.disabled = true;
+  let left = 5;
+  btn.innerText = `⏳ ${left}s`;
+  const int = setInterval(() => {
+    left--;
+    btn.innerText = `⏳ ${left}s`;
+    if (left <= 0) {
+      clearInterval(int);
+      btn.disabled = false;
+      btn.innerText = `💡 Hint`;
+      document.querySelectorAll('.hint-glow').forEach(e => {
+        e.classList.remove('hint-glow', 'hint-arrow');
+      });
+    }
+  }, 1000);
+}
+
+function checkWin() {
+  const size = GAME.size;
+  const bs = GAME.puzzle.blocked || [];
+  const req = size * size - bs.length;
+  
+  if (GAME.path.length !== req) return;
+  const lastDot = GAME.puzzle.dots[GAME.puzzle.dots.length - 1];
+  const lastPath = GAME.path[GAME.path.length - 1];
+  if (lastPath[0] !== lastDot[0] || lastPath[1] !== lastDot[1]) return;
+  
+  clearInterval(GAME.timerInt);
+  GAME.frozen = true;
+  
+  const effTime = GAME.timer + (GAME.hints * 45);
+  const exp = getExpectedTime();
+  let stars = 1;
+  if (effTime <= exp) stars = 3;
+  else if (effTime <= exp * 2) stars = 2;
+  
+  if (!STORE.progress.zip) STORE.progress.zip = {};
+  const existing = STORE.progress.zip[GAME.idx] || STORE.progress[GAME.idx];
+  if (!existing || stars >= existing.stars || effTime < existing.time) {
+    STORE.progress.zip[GAME.idx] = { stars, time: GAME.timer, hints: GAME.hints, effTime };
+    saveLocalStore();
+    syncUp();
+  }
+  
+  setTimeout(() => {
+    document.getElementById('winStars').innerText = '⭐'.repeat(stars);
+    document.getElementById('winTime').innerText = formatTime(GAME.timer) + (GAME.hints ? ` (+${GAME.hints*45}s hints)` : '');
+    document.getElementById('winOverlay').classList.add('active');
+  }, 600);
+}
+
+function nextLevel() {
+  document.getElementById('winOverlay').classList.remove('active');
+  const max = getHighestUnlocked();
+  if (max > GAME.idx && max < PUZZLES.length) {
+    startGame(max);
+  } else {
+    navigate('select');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCommon();
+  renderLevelSelect();
+});
+</script>
+</body>
+</html>
