@@ -304,7 +304,7 @@ function getHighestUnlocked() {
   let h = -1;
   const pZip = STORE.progress.zip || {};
   for (let i = 0; i < PUZZLES.length; i++) {
-    const data = pZip[i] || STORE.progress[i];
+    const data = pZip[i];
     if (data && data.stars > 0) h = i;
     else break;
   }
@@ -320,7 +320,7 @@ function renderLevelSelect() {
   
   const pZip = STORE.progress.zip || {};
   for (let i = 0; i < PUZZLES.length; i++) {
-    const data = pZip[i] || STORE.progress[i];
+    const data = pZip[i];
     if (data && data.stars > 0) doneCount++;
   }
   
@@ -328,7 +328,7 @@ function renderLevelSelect() {
   
   for (let i = 0; i < maxDisplay; i++) {
     const p = PUZZLES[i];
-    const data = pZip[i] || STORE.progress[i];
+    const data = pZip[i];
     const isUnlocked = i <= highest;
     const isDone = data && data.stars > 0;
     
@@ -409,11 +409,19 @@ function buildBoard() {
       }
       
       cell.onpointerdown = (e) => { e.preventDefault(); handleDown(r, c); };
-      cell.onpointerenter = (e) => { if (e.buttons > 0) handleDown(r, c); };
       
       board.appendChild(cell);
     }
   }
+  board.onpointermove = (e) => {
+    if (e.buttons > 0) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el && el.classList.contains('cell')) {
+        handleDown(parseInt(el.dataset.r), parseInt(el.dataset.c));
+      }
+    }
+  };
+  board.onpointerdown = (e) => e.preventDefault();
   drawPath();
 }
 
@@ -481,8 +489,9 @@ function popPath() {
   drawPath();
 }
 
-function undo() { popPath(); }
+function undo() { if (GAME.frozen) return; popPath(); }
 function resetLevel() {
+  if (GAME.frozen) return;
   while (GAME.path.length > 0) popPath();
   document.querySelectorAll('.hint-glow').forEach(e => e.classList.remove('hint-glow', 'hint-arrow'));
 }
@@ -498,19 +507,20 @@ function drawPath() {
   }
   if (GAME.path.length === 0) { svg.innerHTML = ''; return; }
   
-  const vbSize = 1000;
-  svg.setAttribute("viewBox", `0 0 ${vbSize} ${vbSize}`);
-  const step = vbSize / GAME.size;
-  const offset = step / 2;
+  const w = board.clientWidth;
+  const h = board.clientHeight;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   
   let d = "";
   for (let i = 0; i < GAME.path.length; i++) {
     const [r, c] = GAME.path[i];
-    const x = c * step + offset;
-    const y = r * step + offset;
-    d += (i === 0 ? `M ${x} ${y} ` : `L ${x} ${y} `);
+    const cell = document.getElementById(`cell-${r}-${c}`);
+    if (!cell) continue;
+    const cx = cell.offsetLeft + cell.offsetWidth / 2;
+    const cy = cell.offsetTop + cell.offsetHeight / 2;
+    d += (i === 0 ? `M ${cx} ${cy} ` : `L ${cx} ${cy} `);
   }
-  const sw = step * 0.3;
+  const sw = w / GAME.size * 0.3;
   svg.innerHTML = `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" />`;
 }
 
@@ -608,8 +618,12 @@ function checkWin() {
   else if (effTime <= exp * 2) stars = 2;
   
   if (!STORE.progress.zip) STORE.progress.zip = {};
-  const existing = STORE.progress.zip[GAME.idx] || STORE.progress[GAME.idx];
-  if (!existing || stars >= existing.stars || effTime < existing.time) {
+  const existing = STORE.progress.zip[GAME.idx];
+  
+  const betterStars = existing ? stars > existing.stars : true;
+  const sameStarsBetterTime = existing ? (stars === existing.stars && effTime < existing.time) : false;
+  
+  if (!existing || betterStars || sameStarsBetterTime) {
     STORE.progress.zip[GAME.idx] = { stars, time: GAME.timer, hints: GAME.hints, effTime };
     saveLocalStore();
     syncUp();
@@ -624,9 +638,9 @@ function checkWin() {
 
 function nextLevel() {
   document.getElementById('winOverlay').classList.remove('active');
-  const max = getHighestUnlocked();
-  if (max > GAME.idx && max < PUZZLES.length) {
-    startGame(max);
+  const nextIdx = GAME.idx + 1;
+  if (nextIdx < PUZZLES.length) {
+    startGame(nextIdx);
   } else {
     navigate('select');
   }

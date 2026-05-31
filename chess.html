@@ -730,6 +730,7 @@ function startChessGame() {
   CHESS.blackTime = 600;
   CHESS.startTime = Date.now();
   CHESS.moveNotations = [];
+  CHESS.positionMap = {};
 
   document.getElementById('whiteClock').innerText = '10:00';
   document.getElementById('blackClock').innerText = '10:00';
@@ -922,6 +923,15 @@ function executeMove(move, fromBot) {
   CHESS.halfmove = (piece.type === 'P' || captured) ? 0 : CHESS.halfmove + 1;
   if (CHESS.turn === 'b') CHESS.fullmove++;
 
+  // Pawn promotion (if not already chosen by bot)
+  if (special === 'promotion' && !promotion) {
+    CHESS.turn = CHESS.turn === 'w' ? 'b' : 'w';
+    CHESS.promotionPending = { move, snap, piece, captured };
+    clearSelection();
+    showPromotionModal(piece.color);
+    return;
+  }
+
   // Notation
   const notation = buildNotation(move, piece, captured, CHESS.board, CHESS.turn);
   CHESS.moveNotations.push(notation);
@@ -929,13 +939,6 @@ function executeMove(move, fromBot) {
   CHESS.turn = CHESS.turn === 'w' ? 'b' : 'w';
 
   clearSelection();
-
-  // Pawn promotion (if not already chosen by bot)
-  if (special === 'promotion' && !promotion) {
-    CHESS.promotionPending = { move, snap };
-    showPromotionModal(piece.color); // show pieces of the mover's color
-    return;
-  }
 
   animateMove(from, to, () => {
     renderChessBoard();
@@ -1042,23 +1045,29 @@ function showPromotionModal(color) {
 function completePromotion(type) {
   document.getElementById('promotionModal').classList.remove('active');
   if (!CHESS.promotionPending) return;
-  const { move } = CHESS.promotionPending;
+  const { move, piece, captured } = CHESS.promotionPending;
   move.promotion = type;
   CHESS.promotionPending = null;
 
   // Apply promotion to board
-  const piece = { color: CHESS.turn === 'w' ? 'b' : 'w', type };
-  CHESS.board[move.to[0]][move.to[1]] = piece;
+  const newPiece = { color: piece.color, type };
+  CHESS.board[move.to[0]][move.to[1]] = newPiece;
+  
+  // Now generate notation with updated board state for accurate Check evaluation
+  const notation = buildNotation(move, piece, captured, CHESS.board, piece.color);
+  CHESS.moveNotations.push(notation);
 
-  renderChessBoard();
-  updateCapturedPieces();
-  updateMoveHistory();
-  updateChessStatus();
+  animateMove(move.from, move.to, () => {
+    renderChessBoard();
+    updateCapturedPieces();
+    updateMoveHistory();
+    updateChessStatus();
 
-  if (!CHESS.gameOver && CHESS.mode === 'bot' && CHESS.turn === CHESS.botColor) {
-    document.getElementById('botThinkingIndicator').classList.add('active');
-    setTimeout(() => doBotMove(), 300);
-  }
+    if (!CHESS.gameOver && CHESS.mode === 'bot' && CHESS.turn === CHESS.botColor) {
+      document.getElementById('botThinkingIndicator').classList.add('active');
+      setTimeout(() => doBotMove(), 300);
+    }
+  });
 }
 
 // ── Move Generation ──
@@ -1169,6 +1178,14 @@ function isSquareAttacked(board, r, c, byColor) {
     for (let sc = 0; sc < 8; sc++) {
       const p = board[sr][sc];
       if (!p || p.color !== byColor) continue;
+      
+      // Pawns attack diagonally forward regardless of enemy presence
+      if (p.type === 'P') {
+        const dir = byColor === 'w' ? -1 : 1;
+        if (sr + dir === r && (sc - 1 === c || sc + 1 === c)) return true;
+        continue;
+      }
+      
       const pm = getPseudoMoves(sr, sc, board, { wK:false,wQ:false,bK:false,bQ:false }, null);
       if (pm.some(m => m.to[0] === r && m.to[1] === c)) return true;
     }
@@ -1277,6 +1294,62 @@ function updateChessStatus() {
     CHESS.gameOver = true;
     stopChessClock();
     statusText.innerText = 'Draw by 50-move rule';
+    statusDot.style.background = '#e9c46a';
+    setTimeout(() => showChessEndModal('draw', null), 800);
+    return;
+  }
+  
+  // Insufficient Material
+  let wN=0, wB=0, bN=0, bB=0, wM=0, bM=0;
+  for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+    const p = CHESS.board[r][c];
+    if (p && p.type !== 'K') {
+      if (p.type === 'P' || p.type === 'R' || p.type === 'Q') { p.color === 'w' ? wM++ : bM++; }
+      else if (p.type === 'N') { p.color === 'w' ? wN++ : bN++; }
+      else if (p.type === 'B') { p.color === 'w' ? wB++ : bB++; }
+    }
+  }
+  if (wM === 0 && bM === 0) {
+    const wTotal = wN + wB;
+    const bTotal = bN + bB;
+    if ((wTotal === 0 && bTotal === 0) || (wTotal === 1 && bTotal === 0) || (wTotal === 0 && bTotal === 1)) {
+      CHESS.gameOver = true;
+      stopChessClock();
+      statusText.innerText = 'Draw (Insufficient Material)';
+      statusDot.style.background = '#e9c46a';
+      setTimeout(() => showChessEndModal('draw', null), 800);
+      return;
+    }
+  }
+  
+  // Threefold Repetition
+  let fen = '';
+  for(let r=0; r<8; r++) {
+    let empty = 0;
+    for(let c=0; c<8; c++) {
+      if(CHESS.board[r][c]) {
+        if(empty > 0) { fen += empty; empty = 0; }
+        const p = CHESS.board[r][c];
+        fen += p.color === 'w' ? p.type : p.type.toLowerCase();
+      } else { empty++; }
+    }
+    if(empty > 0) fen += empty;
+    if(r < 7) fen += '/';
+  }
+  fen += ` ${CHESS.turn} `;
+  let cast = '';
+  if(CHESS.castling.wK) cast += 'K'; if(CHESS.castling.wQ) cast += 'Q';
+  if(CHESS.castling.bK) cast += 'k'; if(CHESS.castling.bQ) cast += 'q';
+  fen += cast || '-';
+  const ep = CHESS.enPassant;
+  fen += ep ? ` ${ep[0]},${ep[1]}` : ' -';
+  
+  if (!CHESS.positionMap) CHESS.positionMap = {};
+  CHESS.positionMap[fen] = (CHESS.positionMap[fen] || 0) + 1;
+  if (CHESS.positionMap[fen] >= 3) {
+    CHESS.gameOver = true;
+    stopChessClock();
+    statusText.innerText = 'Draw by Repetition';
     statusDot.style.background = '#e9c46a';
     setTimeout(() => showChessEndModal('draw', null), 800);
     return;
@@ -1603,8 +1676,12 @@ function orderMoves(moves, board) {
   return moves.sort((a, b) => {
     const scoreMove = m => {
       let s = 0;
-      const cap = board[m.to[0]][m.to[1]];
-      if (cap) s += PIECE_VALUE[cap.type] * 10 - PIECE_VALUE[board[m.from[0]][m.from[1]].type];
+      if (m.special === 'enpassant') {
+        s += PIECE_VALUE['P'] * 10 - PIECE_VALUE['P'];
+      } else {
+        const cap = board[m.to[0]][m.to[1]];
+        if (cap) s += PIECE_VALUE[cap.type] * 10 - PIECE_VALUE[board[m.from[0]][m.from[1]].type];
+      }
       if (m.promotion) s += PIECE_VALUE[m.promotion];
       if (m.special) s += 50;
       return s;

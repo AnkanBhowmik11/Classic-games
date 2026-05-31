@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sudoku – Classic Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="common.css">
+<style>
+:root {
+  --bg: #f5f2ec;
+  --surface: #ffffff;
+  --surface2: #eeeae2;
+  --border: #ddd9cf;
+  --border-thick: #1a1814;
+  --ink: #1a1814;
+  --ink2: #6b6760;
+  --accent: #2d6a4f;
+  --accent-lt: #d8f3dc;
+  --error: #e76f51;
+  --error-lt: #fde8e3;
+  --sh: 0 2px 16px rgba(26,24,20,.08);
+  --sh-lg: 0 8px 40px rgba(26,24,20,.14);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: 'Syne', sans-serif; min-height: 100vh; overflow-x: hidden; touch-action: manipulation;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 999;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+/* ── Top Nav ── */
+.topnav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 2rem; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.25rem; text-decoration: none; color: inherit; }
+.logo-icon { width: 28px; height: 28px; background: var(--ink); border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; }
+.logo-icon i { background: var(--bg); border-radius: 2px; }
+
+/* ── Pages ── */
+.page { display: none; padding: 2rem; max-width: 1000px; margin: 0 auto; animation: fade 0.3s ease; }
+.page.active { display: block; }
+@keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Level Select ── */
+.level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
+.lvl-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.5rem 1rem; text-align: center;
+  position: relative; transition: all 0.2s; box-shadow: var(--sh);
+}
+.lvl-card.unlocked { cursor: pointer; }
+.lvl-card.unlocked:hover { transform: translateY(-2px); border-color: var(--accent); }
+.lvl-card.locked { opacity: 0.5; filter: blur(1px); user-select: none; pointer-events: none; }
+.lvl-card h4 { font-size: 1.5rem; margin-bottom: 0.5rem; font-family: 'JetBrains Mono', monospace; }
+.lvl-card .stars { color: #e9c46a; font-size: 1.1rem; }
+.lvl-card .time { font-size: 0.8rem; color: var(--ink2); margin-top: 0.25rem; }
+.lvl-card.current { border: 2px solid var(--accent); }
+
+/* ── Game Page ── */
+.game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.back-btn { background: var(--surface); border: 1px solid var(--border); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; box-shadow: var(--sh); font-weight: bold; }
+.game-title { font-size: 1.5rem; font-weight: 700; }
+.timer-display { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: bold; background: var(--surface); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border); }
+
+/* ── Board ── */
+.game-container { display: flex; flex-direction: column; align-items: center; gap: 2rem; margin-top: 1rem; }
+
+.board-wrap {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  /* Forcefully override common.css pollution */
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-rows: repeat(9, minmax(0, 1fr));
+  width: 100%;
+  aspect-ratio: 1;
+  border: 4px solid #000 !important; /* Pure black outer border */
+  background: #fff !important;
+  box-sizing: border-box;
+  gap: 0 !important; /* Reset common.css gap */
+}
+
+.cell {
+  background: var(--surface) !important;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; /* Restored previous font */
+  font-size: clamp(1rem, 4vw, 1.6rem);
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+  
+  /* Reset common.css strict 50px width/height causing mobile overflow */
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0; min-height: 0;
+  box-sizing: border-box;
+  
+  border-right: 1px solid #000 !important; /* Crisp thin black grid lines */
+  border-bottom: 1px solid #000 !important;
+  border-left: none !important;
+  border-top: none !important;
+}
+
+/* Remove borders on the very edges */
+.cell:nth-child(9n) { border-right: none !important; }
+.cell:nth-child(n+73) { border-bottom: none !important; }
+
+/* Thick block separators */
+.cell:nth-child(3n):not(:nth-child(9n)) {
+  border-right: 3px solid #000 !important;
+}
+.cell:nth-child(n+19):nth-child(-n+27),
+.cell:nth-child(n+46):nth-child(-n+54) {
+  border-bottom: 3px solid #000 !important;
+}
+
+.cell:active:not(.fixed) { background: #e2e8f0 !important; }
+.cell.fixed  { color: var(--ink); cursor: default; }
+.cell.user   { color: #7c3aed !important; } /* Restored purple user input */
+.cell.hl     { background: #f1f5f9 !important; } /* Restored previous highlight */
+.cell.err    { background: var(--error-lt) !important; color: var(--error) !important; }
+.cell.selected { outline: 3px solid var(--accent); z-index: 10; }
+
+/* Controls */
+.controls { display: flex; gap: 1rem; }
+.ctrl-btn {
+  padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 700;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--sh); transition: transform 0.1s;
+}
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn.hint { background: #ffe8d6; color: #d08c60; border-color: #ffd7ba; }
+
+@media (max-width: 600px) {
+  .page { padding: 1rem; }
+  .board-wrap { padding: 0; max-width: 100%; border-radius: 0; border: none; box-shadow: none; }
+  .game-header { flex-wrap: wrap; gap: 0.5rem; }
+  .timer-display { font-size: 1.2rem; }
+  .controls { gap: 0.5rem; width: 100%; justify-content: center; }
+  .ctrl-btn { padding: 0.6rem 1rem; font-size: 0.9rem; }
+}
+
+/* ── Modals ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal {
+  background: var(--surface); padding: 2rem; border-radius: 20px;
+  width: 90%; max-width: 400px; box-shadow: var(--sh-lg);
+  transform: translateY(20px); transition: transform 0.3s;
+}
+.modal-overlay.active .modal { transform: translateY(0); }
+.stars-display { font-size: 3rem; color: #e9c46a; margin: 1rem 0; letter-spacing: 5px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="index.html" class="logo">
+    <div class="logo-icon"><i></i><i></i><i></i><i></i></div>
+    Classic Games
+  </a>
+  <button class="auth-btn" id="authBtn" onclick="openAuthModal()"></button>
+</header>
+
+<!-- LEVEL SELECT PAGE -->
+<main id="page-select" class="page active">
+  <div class="level-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h2>Sudoku</h2>
+    <div style="font-family:'JetBrains Mono',monospace" id="lvlProgress">0/500</div>
+  </div>
+  <div class="level-grid" id="levelGrid"></div>
+</main>
+
+<!-- GAME PAGE -->
+<main id="page-game" class="page">
+  <div class="game-header">
+    <button class="back-btn" onclick="navigate('select')">←</button>
+    <div class="game-title">Level <span id="gameLevelNum"></span></div>
+    <div class="timer-display" id="gameTimer">00:00</div>
+  </div>
+
+  <div class="game-container">
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn hint" id="hintBtn" onclick="useHint()">💡 Hint</button>
+      <button class="ctrl-btn" onclick="undo()">↶ Undo</button>
+      <button class="ctrl-btn" onclick="resetBoard()">↻ Reset</button>
+    </div>
+  </div>
+</main>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="margin:0" id="authTitle">Account</h2>
+      <button onclick="closeAuthModal()" style="font-size:1.5rem">&times;</button>
+    </div>
+    <div id="authLoggedOut">
+      <div class="modal-tabs">
+        <div class="tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</div>
+        <div class="tab" id="tabCreate" onclick="switchAuthTab('create')">Create Account</div>
+      </div>
+      <div id="createFields" style="display:none">
+        <div class="input-group">
+          <label>Display Name</label>
+          <input type="text" id="authName" value="Player">
+        </div>
+      </div>
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" id="authEmail">
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="authPass">
+      </div>
+      <div id="authError" style="color:#e76f51; font-size:0.9rem; margin-bottom:0.5rem"></div>
+      <button class="btn-primary" id="authActionBtn" onclick="submitAuth()">Sign In</button>
+    </div>
+    <div id="authLoggedIn" style="display:none; text-align:center">
+      <p style="font-size:1.2rem; margin-bottom:1rem">Welcome, <strong id="authDisplayName"></strong></p>
+      <div style="background:var(--surface2); padding:1rem; border-radius:12px; margin-bottom:1.5rem; text-align:left;">
+        <div style="margin-bottom:0.5rem; font-size:1.1rem;"><strong>Total Stars:</strong> <span id="profileStars" style="font-family:'JetBrains Mono',monospace; color:#e76f51; font-weight:bold;">0</span> ⭐</div>
+        <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+        <label style="font-weight:600; display:block; margin-bottom:0.5rem;">Daily Time Limit (minutes)</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input type="number" id="dailyLimitInput" min="1" value="60" style="width:100%; padding:0.5rem; border-radius:8px; border:1px solid var(--border);">
+          <button class="btn-primary" style="margin-top:0; width:auto; padding:0.5rem 1rem;" onclick="saveDailyLimit()">Save</button>
+        </div>
+      </div>
+      <button class="btn-primary" style="background:#e76f51" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME LIMIT OVERLAY -->
+<div class="modal-overlay" id="timeLimitOverlay">
+  <div class="modal" style="text-align:center">
+    <h2 style="margin-bottom:1rem">Time's Up! ⏰</h2>
+    <p style="margin-bottom:1.5rem">You have reached your daily limit of <strong id="limitDisplay">60</strong> minutes.</p>
+    <p style="color:var(--ink2)">Come back tomorrow to play more, or adjust your limit in the Profile.</p>
+    <button class="btn-primary" style="margin-top:1.5rem" onclick="document.getElementById('timeLimitOverlay').classList.remove('active'); window.location.href='index.html'">Go Home</button>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="modal-overlay" id="winOverlay">
+  <div class="modal" style="text-align:center">
+    <h2>Level Complete!</h2>
+    <div class="stars-display" id="winStars">⭐⭐⭐</div>
+    <p style="margin-bottom:1rem; font-family:'JetBrains Mono',monospace">Time: <span id="winTime"></span></p>
+    <button class="btn-primary" onclick="nextLevel()">Next Level →</button>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+const TOTAL_LEVELS = 500;
+
+// Base known valid Sudoku board to scramble
+const baseBoard = [
+  [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  [4, 5, 6, 7, 8, 9, 1, 2, 3],
+  [7, 8, 9, 1, 2, 3, 4, 5, 6],
+  [2, 3, 1, 5, 6, 4, 8, 9, 7],
+  [5, 6, 4, 8, 9, 7, 2, 3, 1],
+  [8, 9, 7, 2, 3, 1, 5, 6, 4],
+  [3, 1, 2, 6, 4, 5, 9, 7, 8],
+  [6, 4, 5, 9, 7, 8, 3, 1, 2],
+  [9, 7, 8, 3, 1, 2, 6, 4, 5]
+];
+
+// Generator for deterministic puzzles
+function generateSudoku(level) {
+  let seed = level * 1337;
+  function rnd() { let x = Math.sin(seed++) * 10000; return x - Math.floor(x); }
+  
+  // Scramble numbers
+  let board = baseBoard.map(row => [...row]);
+  let nums = [1,2,3,4,5,6,7,8,9];
+  for(let i=nums.length-1; i>0; i--) {
+    let j = Math.floor(rnd() * (i + 1));
+    [nums[i], nums[j]] = [nums[j], nums[i]];
+  }
+  for(let r=0; r<9; r++) for(let c=0; c<9; c++) board[r][c] = nums[board[r][c] - 1];
+  
+  // Scramble rows/cols within blocks
+  for(let b=0; b<3; b++) {
+    for(let k=0; k<2; k++){
+      let r1 = b*3 + Math.floor(rnd()*3), r2 = b*3 + Math.floor(rnd()*3);
+      [board[r1], board[r2]] = [board[r2], board[r1]];
+      let c1 = b*3 + Math.floor(rnd()*3), c2 = b*3 + Math.floor(rnd()*3);
+      for(let r=0; r<9; r++){ let t=board[r][c1]; board[r][c1]=board[r][c2]; board[r][c2]=t; }
+    }
+  }
+  
+  // Swap blocks
+  for(let k=0; k<2; k++){
+    let b1 = Math.floor(rnd()*3), b2 = Math.floor(rnd()*3);
+    for(let r=0; r<3; r++) { let t=board[b1*3+r]; board[b1*3+r]=board[b2*3+r]; board[b2*3+r]=t; }
+    b1 = Math.floor(rnd()*3); b2 = Math.floor(rnd()*3);
+    for(let r=0; r<9; r++){ for(let c=0; c<3; c++){ let t=board[r][b1*3+c]; board[r][b1*3+c]=board[r][b2*3+c]; board[r][b2*3+c]=t; } }
+  }
+
+  // Remove cells ensuring uniqueness
+  let removeCount = 30 + Math.floor(rnd() * 25);
+  let cells = [];
+  for(let r=0; r<9; r++) for(let c=0; c<9; c++) cells.push([r,c]);
+  for(let i=cells.length-1; i>0; i--) {
+    let j = Math.floor(rnd() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  
+  let puzzle = board.map(row => [...row]);
+  let removed = 0;
+  
+  function isValid(b, r, c, n) {
+    for(let i=0; i<9; i++) if(b[r][i]===n || b[i][c]===n) return false;
+    let br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for(let i=0; i<3; i++) for(let j=0; j<3; j++) if(b[br+i][bc+j]===n) return false;
+    return true;
+  }
+  
+  function countSolutions(b) {
+    let sols = 0;
+    function solve() {
+      for(let r=0; r<9; r++){
+        for(let c=0; c<9; c++){
+          if(b[r][c] === 0){
+            for(let n=1; n<=9; n++){
+              if(isValid(b, r, c, n)){
+                b[r][c] = n; solve(); b[r][c] = 0;
+                if(sols > 1) return;
+              }
+            }
+            return;
+          }
+        }
+      }
+      sols++;
+    }
+    solve();
+    return sols;
+  }
+  
+  for(let [r, c] of cells) {
+    if(removed >= removeCount) break;
+    let backup = puzzle[r][c];
+    puzzle[r][c] = 0;
+    if(countSolutions(puzzle) === 1) removed++;
+    else puzzle[r][c] = backup;
+  }
+  return { puzzle, solution: board };
+}
+
+let GAME = {
+  level: 1, board: [], fixed: [], solution: [], history: [],
+  selR: -1, selC: -1,
+  timer: 0, timerInt: null, hintInt: null, frozen: false
+};
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  if (page === 'select') {
+    renderLevelSelect();
+    if(GAME.timerInt) clearInterval(GAME.timerInt);
+    if(GAME.hintInt) { 
+      clearInterval(GAME.hintInt); 
+      const btn = document.getElementById('hintBtn');
+      if (btn) { btn.disabled = false; btn.innerText = '💡 Hint'; }
+    }
+  }
+}
+
+function getHighestUnlocked() {
+  let h = -1;
+  const pData = STORE.progress.sudoku || {};
+  for (let i = 1; i <= TOTAL_LEVELS; i++) {
+    if (pData[i] && pData[i].stars > 0) h = i;
+    else break;
+  }
+  return h === -1 ? 1 : h + 1; 
+}
+
+function renderLevelSelect() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  
+  const highest = getHighestUnlocked();
+  let doneCount = 0;
+  
+  const pData = STORE.progress.sudoku || {};
+  for (let i = 1; i <= TOTAL_LEVELS; i++) {
+    if (pData[i] && pData[i].stars > 0) doneCount++;
+  }
+  
+  const maxDisplay = Math.min(TOTAL_LEVELS, highest + 11);
+  
+  for (let i = 1; i <= maxDisplay; i++) {
+    const data = pData[i];
+    const isUnlocked = i <= highest;
+    const isDone = data && data.stars > 0;
+    
+    const card = document.createElement('div');
+    card.className = `lvl-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+    if (i === highest) card.classList.add('current');
+    
+    let sub = 'Locked';
+    if (isUnlocked) sub = 'Ready to play';
+    if (isDone) {
+      sub = `<span class="stars">${'⭐'.repeat(data.stars)}</span>`;
+      card.style.borderColor = 'var(--accent)';
+      card.style.background = 'var(--accent-lt)';
+    }
+    
+    card.innerHTML = `<h4>Lvl ${i}</h4><div>${sub}</div>`;
+    if (isDone) card.innerHTML += `<div class="time">${formatTime(data.time)}</div>`;
+    
+    if (isUnlocked) card.onclick = () => startGame(i);
+    grid.appendChild(card);
+  }
+  
+  document.getElementById('lvlProgress').innerText = `${doneCount} Levels`;
+}
+
+function startGame(lvl) {
+  const todayStr = getTodayDate();
+  const tmins = Math.floor((STORE.sessions[todayStr]||0)/60);
+  const limit = STORE.settings.dailyLimit || 60;
+  if (tmins >= limit && limit > 0) {
+    document.getElementById('limitDisplay').innerText = limit;
+    document.getElementById('timeLimitOverlay').classList.add('active');
+    return;
+  }
+
+  GAME.level = lvl;
+  const puz = generateSudoku(lvl);
+  
+  GAME.board = puz.puzzle.map(r => [...r]);
+  GAME.fixed = puz.puzzle.map(r => r.map(c => c !== 0));
+  GAME.solution = puz.solution;
+  GAME.history = [];
+  GAME.selR = -1; GAME.selC = -1;
+  GAME.frozen = false; GAME.timer = 0;
+  
+document.getElementById('gameLevelNum').innerText = lvl;
+  buildBoard();
+  startTimer();
+  navigate('game');
+}
+
+function fitBoard() {}
+
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${r}-${c}`;
+      cell.dataset.r = r; cell.dataset.c = c;
+      
+      const val = GAME.board[r][c];
+      if (val !== 0) cell.innerText = val;
+      if (GAME.fixed[r][c]) cell.classList.add('fixed');
+      else if (val !== 0) cell.classList.add('user');
+      
+      cell.onpointerdown = (e) => { e.preventDefault(); handleCellTap(r, c); };
+      board.appendChild(cell);
+    }
+  }
+  updateHighlights();
+  checkErrors();
+}
+
+function handleCellTap(r, c) {
+  if (GAME.frozen) return;
+  
+  GAME.selR = r; GAME.selC = c;
+  
+  if (!GAME.fixed[r][c]) {
+    let v = GAME.board[r][c];
+    v = (v + 1) % 10;
+    inputNum(r, c, v);
+  } else {
+    // Just highlight matching numbers
+    updateHighlights();
+  }
+}
+
+function updateHighlights() {
+  let hlNum = 0;
+  if (GAME.selR !== -1 && GAME.selC !== -1) {
+    hlNum = GAME.board[GAME.selR][GAME.selC];
+  }
+  
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const el = document.getElementById(`cell-${r}-${c}`);
+      el.classList.remove('hl', 'selected');
+      if (r === GAME.selR && c === GAME.selC) {
+        el.classList.add('selected');
+      } else if (hlNum !== 0 && GAME.board[r][c] === hlNum) {
+        el.classList.add('hl');
+      }
+    }
+  }
+}
+
+function checkErrors() {
+  let hasError = false;
+  let counts = {r:[], c:[], b:[]};
+  for(let i=0; i<9; i++) { counts.r[i] = {}; counts.c[i] = {}; counts.b[i] = {}; }
+  
+  for(let r=0; r<9; r++){
+    for(let c=0; c<9; c++){
+      let v = GAME.board[r][c];
+      if(v===0) continue;
+      let b = Math.floor(r/3)*3 + Math.floor(c/3);
+      counts.r[r][v] = (counts.r[r][v]||0)+1;
+      counts.c[c][v] = (counts.c[c][v]||0)+1;
+      counts.b[b][v] = (counts.b[b][v]||0)+1;
+    }
+  }
+  
+  for(let r=0; r<9; r++){
+    for(let c=0; c<9; c++){
+      const el = document.getElementById(`cell-${r}-${c}`);
+      let v = GAME.board[r][c];
+      el.classList.remove('err');
+      if(v!==0) {
+        let b = Math.floor(r/3)*3 + Math.floor(c/3);
+        if(counts.r[r][v] > 1 || counts.c[c][v] > 1 || counts.b[b][v] > 1) {
+          el.classList.add('err');
+          hasError = true;
+        }
+      }
+    }
+  }
+  return hasError;
+}
+
+function inputNum(r, c, n, isUndo = false) {
+  if (GAME.frozen || GAME.fixed[r][c]) return;
+  
+  if (n !== 0 && !isUndo) {
+    // Strictly prevent invalid moves from being placed
+    for(let i=0; i<9; i++) {
+      if (i !== c && GAME.board[r][i] === n) return;
+      if (i !== r && GAME.board[i][c] === n) return;
+    }
+    let br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for(let i=0; i<3; i++) {
+      for(let j=0; j<3; j++) {
+        if ((br+i !== r || bc+j !== c) && GAME.board[br+i][bc+j] === n) return;
+      }
+    }
+  }
+  
+  if (!isUndo) {
+    GAME.history.push({ r, c, old: GAME.board[r][c] });
+  }
+  
+  GAME.board[r][c] = n;
+  const el = document.getElementById(`cell-${r}-${c}`);
+  el.innerText = n === 0 ? '' : n;
+  if (n !== 0) el.classList.add('user'); else el.classList.remove('user');
+  
+  GAME.selR = r; GAME.selC = c;
+  updateHighlights();
+  const hasErr = checkErrors();
+  
+  // Check Win
+  if (!hasErr) {
+    let full = true;
+    for(let r=0; r<9; r++) for(let c=0; c<9; c++) if(GAME.board[r][c]===0) full = false;
+    if (full) triggerWin();
+  }
+}
+
+function undo() {
+  if (GAME.frozen || GAME.history.length === 0) return;
+  const last = GAME.history.pop();
+  inputNum(last.r, last.c, last.old, true);
+}
+
+function resetBoard() {
+  if (GAME.frozen) return;
+  GAME.history = [];
+  GAME.selR = -1; GAME.selC = -1;
+  for(let r=0; r<9; r++){
+    for(let c=0; c<9; c++){
+      if (!GAME.fixed[r][c]) {
+        GAME.board[r][c] = 0;
+        const el = document.getElementById(`cell-${r}-${c}`);
+        el.innerText = '';
+        el.classList.remove('user', 'err');
+      }
+    }
+  }
+  updateHighlights();
+  checkErrors();
+}
+
+function useHint() {
+  const btn = document.getElementById('hintBtn');
+  if (GAME.frozen || btn.disabled) return;
+  
+  let target = null;
+  // Try selected cell first if it's wrong or empty
+  if (GAME.selR !== -1 && GAME.selC !== -1 && !GAME.fixed[GAME.selR][GAME.selC]) {
+    if (GAME.board[GAME.selR][GAME.selC] !== GAME.solution[GAME.selR][GAME.selC]) {
+      target = { r: GAME.selR, c: GAME.selC };
+    }
+  }
+  
+  // Otherwise pick random empty or wrong cell
+  if (!target) {
+    let wrongCells = [];
+    for(let r=0; r<9; r++) {
+      for(let c=0; c<9; c++) {
+        if (!GAME.fixed[r][c] && GAME.board[r][c] !== GAME.solution[r][c]) {
+          wrongCells.push({r, c});
+        }
+      }
+    }
+    if (wrongCells.length === 0) return;
+    target = wrongCells[Math.floor(Math.random() * wrongCells.length)];
+  }
+  
+  inputNum(target.r, target.c, GAME.solution[target.r][target.c]);
+  
+  btn.disabled = true;
+  let left = 5;
+  btn.innerText = `⏳ ${left}s`;
+  GAME.hintInt = setInterval(() => {
+    left--;
+    btn.innerText = `⏳ ${left}s`;
+    if (left <= 0) {
+      clearInterval(GAME.hintInt);
+      btn.disabled = false;
+      btn.innerText = `💡 Hint`;
+    }
+  }, 1000);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60); const s = secs % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function startTimer() {
+  if (GAME.timerInt) clearInterval(GAME.timerInt);
+  const el = document.getElementById('gameTimer');
+  GAME.timerInt = setInterval(() => {
+    if (GAME.frozen) return;
+    GAME.timer++;
+    el.innerText = formatTime(GAME.timer);
+  }, 1000);
+}
+
+function triggerWin() {
+  clearInterval(GAME.timerInt);
+  GAME.frozen = true;
+  GAME.selR = -1; GAME.selC = -1;
+  updateHighlights();
+  
+  let stars = 1;
+  if (GAME.timer <= 300) stars = 3;       // < 5 mins
+  else if (GAME.timer <= 600) stars = 2;  // < 10 mins
+  
+  if (!STORE.progress.sudoku) STORE.progress.sudoku = {};
+  const existing = STORE.progress.sudoku[GAME.level];
+  const newStars = existing ? Math.max(existing.stars, stars) : stars;
+  const newTime = existing ? Math.min(existing.time, GAME.timer) : GAME.timer;
+  
+  if (!existing || stars > existing.stars || (stars === existing.stars && GAME.timer < existing.time)) {
+    STORE.progress.sudoku[GAME.level] = { stars: newStars, time: newTime };
+    saveLocalStore();
+    syncUp();
+  }
+  
+  setTimeout(() => {
+    document.getElementById('winStars').innerText = '⭐'.repeat(stars);
+    document.getElementById('winTime').innerText = formatTime(GAME.timer);
+    document.getElementById('winOverlay').classList.add('active');
+  }, 500);
+}
+
+function nextLevel() {
+  document.getElementById('winOverlay').classList.remove('active');
+  const nextLvl = GAME.level + 1;
+  if (nextLvl <= getHighestUnlocked() && nextLvl <= TOTAL_LEVELS) {
+    startGame(nextLvl);
+  } else {
+    navigate('select');
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (GAME.frozen || GAME.selR === -1 || GAME.selC === -1) return;
+  
+  if (e.key >= '1' && e.key <= '9') {
+    inputNum(GAME.selR, GAME.selC, parseInt(e.key));
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
+    inputNum(GAME.selR, GAME.selC, 0);
+  }
+  
+  let [r, c] = [GAME.selR, GAME.selC];
+  if (e.key === 'ArrowUp') r = Math.max(0, r - 1);
+  if (e.key === 'ArrowDown') r = Math.min(8, r + 1);
+  if (e.key === 'ArrowLeft') c = Math.max(0, c - 1);
+  if (e.key === 'ArrowRight') c = Math.min(8, c + 1);
+  if (r !== GAME.selR || c !== GAME.selC) {
+    GAME.selR = r; GAME.selC = c;
+    updateHighlights();
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCommon();
+  renderLevelSelect();
+  navigate('select');
+  if (typeof USER !== 'undefined' && USER) updateProfileUI();
+});
+window.addEventListener('resize', fitBoard);
+</script>
+</body>
+</html>

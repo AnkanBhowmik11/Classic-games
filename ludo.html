@@ -653,12 +653,24 @@ const cv_click = function(e){
   const rect=cv.getBoundingClientRect();
   const sx=cv.width/rect.width,sy=cv.height/rect.height;
   const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
+  
   const stk={};
+  const allXY = [];
+  for(const p of PLAYERS){
+    PIECES[p.color].forEach((pc,i)=>{
+      if(!pc.anim) {
+         const xy = pcXY(p.color, pc, i, stk);
+         if(p.color === pl.color && MOVABLE.includes(i)) {
+           allXY.push({i, x: xy[0], y: xy[1]});
+         }
+      }
+    });
+  }
+  
   let best=-1,bd=Infinity;
-  for(const i of MOVABLE){
-    const[x,y]=pcXY(pl.color,PIECES[pl.color][i],i,stk);
-    const d=Math.hypot(mx-x*CS,my-y*CS);
-    if(d<bd){bd=d;best=i;}
+  for(const m of allXY){
+    const d=Math.hypot(mx-m.x*CS,my-m.y*CS);
+    if(d<bd){bd=d;best=m.i;}
   }
   if(best!==-1&&bd<CS*.8){doMove(pl.color,best,DICE);}
 };
@@ -840,6 +852,8 @@ function capture(color, i){
 }
 
 /* ── Turn flow ───────────────────────────── */
+let PRE_TURN_STATE = null, PRE_TURN_FINISH = [];
+
 function doRoll(){
   if(ROLLED||OVER||ANIMATING)return;
   const pl=PLAYERS[CUR];
@@ -847,8 +861,27 @@ function doRoll(){
   DICE=v;ROLLED=true;clearRoll();
   animDie(pl.color,v);
   document.getElementById('bi').classList.remove('on');
-  if(v===6){C6++;if(C6>=3){C6=0;toast('Three 6s — turn lost!','neu');setTimeout(nextTurn,1300);return;}}
-  else C6=0;
+  
+  if(C6 === 0) {
+    PRE_TURN_STATE = JSON.parse(JSON.stringify(PIECES));
+    PRE_TURN_FINISH = [...FINISH];
+  }
+  
+  if(v===6){
+    C6++;
+    if(C6>=3){
+      C6=0;
+      toast('Three 6s — moves reverted!','neu');
+      PIECES = JSON.parse(JSON.stringify(PRE_TURN_STATE));
+      FINISH = [...PRE_TURN_FINISH];
+      setTimeout(() => {
+        render();
+        refreshBadges();
+        nextTurn();
+      }, 1300);
+      return;
+    }
+  } else C6=0;
   const mv=movable(pl.color,v);
   if(!mv.length){
     document.getElementById('sm').textContent='No moves';
@@ -956,8 +989,25 @@ function botAct(){
   const v=1+Math.floor(Math.random()*6);
   DICE=v;ROLLED=true;animDie(pl.color,v);
   document.getElementById('bi').classList.remove('on');
-  if(v===6){C6++;if(C6>=3){C6=0;toast('Three 6s — turn lost!','neu');setTimeout(nextTurn,1300);return;}}
-  else C6=0;
+  if(C6 === 0) {
+    PRE_TURN_STATE = JSON.parse(JSON.stringify(PIECES));
+    PRE_TURN_FINISH = [...FINISH];
+  }
+  if(v===6){
+    C6++;
+    if(C6>=3){
+      C6=0;
+      toast('Three 6s — moves reverted!','neu');
+      PIECES = JSON.parse(JSON.stringify(PRE_TURN_STATE));
+      FINISH = [...PRE_TURN_FINISH];
+      setTimeout(() => {
+        render();
+        refreshBadges();
+        nextTurn();
+      }, 1300);
+      return;
+    }
+  } else C6=0;
   setTimeout(()=>{
     const mv=movable(pl.color,v);
     if(!mv.length){
@@ -1013,7 +1063,25 @@ function scoreM(color,i,dice){
       }
     }
   }
-  s+=o*.4;if(SAFE.has(np))s+=20;return s;
+  s+=o*.4;if(SAFE.has(np))s+=20;
+  
+  // Bonus for moving out of danger
+  if(pc.ph==='track' && !SAFE.has((EN[color]+o)%52)){
+    let wasDanger = false;
+    const cp = (EN[color]+o)%52;
+    for(const pl of PLAYERS){
+      if(pl.color===color)continue;
+      for(const op of PIECES[pl.color]){
+        if(op.ph!=='track')continue;
+        const op_abs = (EN[pl.color] + off(pl.color,op)) % 52;
+        const dist = (cp - op_abs + 52) % 52;
+        if(dist>=1 && dist<=6) wasDanger = true;
+      }
+    }
+    if(wasDanger) s += 18;
+  }
+  
+  return s;
 }
 
 /* ── Toast ───────────────────────────────── */

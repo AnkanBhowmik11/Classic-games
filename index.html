@@ -149,16 +149,61 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
     <div class="games-grid">
       <a href="zip.html" class="game-card">
-        <div class="game-icon">🔗</div>
+        <div class="game-icon" style="display:flex;justify-content:center">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="12" cy="12" r="7" fill="var(--ink)"/>
+            <circle cx="36" cy="36" r="7" fill="var(--ink)"/>
+            <circle cx="36" cy="12" r="7" fill="var(--ink)" opacity=".4"/>
+            <circle cx="12" cy="36" r="7" fill="var(--ink)" opacity=".4"/>
+            <line x1="12" y1="12" x2="36" y2="36" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
         <h3>Zip</h3>
         <p>Connect the dots in order to fill the board.</p>
         <div class="play-btn-small">Play Zip</div>
       </a>
       <a href="ludo.html" class="game-card">
-        <div class="game-icon">🎲</div>
+        <div class="game-icon" style="display:flex;justify-content:center">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <rect x="4" y="4" width="18" height="18" rx="4" fill="#18b44a"/>
+            <rect x="26" y="4" width="18" height="18" rx="4" fill="#f5c400"/>
+            <rect x="4" y="26" width="18" height="18" rx="4" fill="#e63535"/>
+            <rect x="26" y="26" width="18" height="18" rx="4" fill="#1565c0"/>
+            <rect x="18" y="18" width="12" height="12" rx="2" fill="var(--ink)" opacity=".12"/>
+            <circle cx="14" cy="14" r="4" fill="white" opacity=".7"/>
+            <circle cx="34" cy="14" r="4" fill="white" opacity=".7"/>
+            <circle cx="14" cy="34" r="4" fill="white" opacity=".7"/>
+            <circle cx="34" cy="34" r="4" fill="white" opacity=".7"/>
+          </svg>
+        </div>
         <h3>Ludo</h3>
         <p>Classic board game for 2-4 players.</p>
         <div class="play-btn-small">Play Ludo</div>
+      </a>
+      <a href="snakeladder.html" class="game-card">
+        <div class="game-icon" style="display:flex;justify-content:center">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <!-- Ladder -->
+            <line x1="10" y1="42" x2="10" y2="8" stroke="#795548" stroke-width="3" stroke-linecap="round"/>
+            <line x1="20" y1="42" x2="20" y2="8" stroke="#795548" stroke-width="3" stroke-linecap="round"/>
+            <line x1="10" y1="35" x2="20" y2="35" stroke="#8d6e63" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="10" y1="27" x2="20" y2="27" stroke="#8d6e63" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="10" y1="19" x2="20" y2="19" stroke="#8d6e63" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Snake body -->
+            <path d="M38 10 C44 18 28 22 34 30 C40 38 26 42 30 44" stroke="#2e7d32" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <!-- Snake head -->
+            <ellipse cx="38" cy="9" rx="5" ry="4" fill="#388e3c"/>
+            <circle cx="36" cy="7.5" r="1.2" fill="white"/>
+            <circle cx="36.2" cy="7.5" r="0.6" fill="#111"/>
+            <!-- Tongue -->
+            <line x1="43" y1="9" x2="47" y2="9" stroke="#e53e3e" stroke-width="1.2" stroke-linecap="round"/>
+            <line x1="47" y1="9" x2="49" y2="7" stroke="#e53e3e" stroke-width="1" stroke-linecap="round"/>
+            <line x1="47" y1="9" x2="49" y2="11" stroke="#e53e3e" stroke-width="1" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Snake &amp; Ladder</h3>
+        <p>Roll, climb ladders, dodge snakes. 5 unique boards!</p>
+        <div class="play-btn-small">Play Now</div>
       </a>
       <a href="chess.html" class="game-card">
         <div class="game-icon" style="display:flex;justify-content:center">
@@ -172,6 +217,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
         <h3>Chess</h3>
         <p>Two-player or vs intelligent bot. Full rules.</p>
         <div class="play-btn-small">Play Chess</div>
+      </a>
+      
+      <a href="sudoku.html" class="game-card">
+        <div class="game-icon" style="display:flex;justify-content:center;align-items:center;background:#fff;border:2px solid var(--border);border-radius:12px;width:48px;height:48px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:1.5rem;font-weight:bold;color:var(--ink)">9</span>
+        </div>
+        <h3>Sudoku</h3>
+        <p>Classic number puzzle. 500 levels.</p>
+        <div class="play-btn-small">Play Sudoku</div>
       </a>
     </div>
   </div>
