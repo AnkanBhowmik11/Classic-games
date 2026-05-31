@@ -449,13 +449,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     </div>
     <!-- Board center -->
     <div class="chess-board-wrap">
-      <div style="display:grid; grid-template-columns: 18px 1fr; width:100%; max-width:538px; justify-content:center;">
-        <div class="chess-coord-side" id="coordSide"></div>
-        <div class="chess-board-outer" style="width:100%; box-sizing:border-box;">
-          <div class="chess-board" id="chessBoard"></div>
+      <div style="display:flex; width:100%; max-width:538px; justify-content:center;">
+        <div class="chess-coord-side" id="coordSide" style="width:18px;"></div>
+        <div style="flex:1; display:flex; flex-direction:column;">
+          <div class="chess-board-outer" style="width:100%; box-sizing:border-box;">
+            <div class="chess-board" id="chessBoard"></div>
+          </div>
+          <div class="chess-coord-bot" id="coordBot"></div>
         </div>
-        <div></div>
-        <div class="chess-coord-bot" id="coordBot"></div>
       </div>
       <div class="chess-status-bar">
         <div class="status-indicator" id="chessStatusDot"></div>
