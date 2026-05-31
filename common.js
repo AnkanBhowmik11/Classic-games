@@ -243,6 +243,7 @@ function getTodayDate() {
 
 function startSessionTracker() {
   let lastTick = Date.now();
+  let lastSync = Date.now();
   setInterval(() => {
     if (document.hidden) { lastTick = Date.now(); return; }
     const now = Date.now();
@@ -254,6 +255,11 @@ function startSessionTracker() {
     if (!STORE.sessions[today]) STORE.sessions[today] = 0;
     STORE.sessions[today] += diff / 1000;
     saveLocalStore();
+    
+    if (now - lastSync > 30000) {
+      if (typeof syncUp === 'function') syncUp();
+      lastSync = now;
+    }
     
     const mins = Math.floor(STORE.sessions[today] / 60);
     if(typeof updateTodayPie === 'function') updateTodayPie(mins);
