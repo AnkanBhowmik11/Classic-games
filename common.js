@@ -99,7 +99,11 @@ async function syncDown() {
         }
       }
     }
-    STORE.sessions = { ...data.sessions, ...STORE.sessions };
+    if (data.sessions) {
+      for (const d in data.sessions) {
+        STORE.sessions[d] = Math.max(STORE.sessions[d] || 0, data.sessions[d]);
+      }
+    }
     if (data.settings) STORE.settings = { ...STORE.settings, ...data.settings };
     
     saveLocalStore();

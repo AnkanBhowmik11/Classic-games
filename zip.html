@@ -302,9 +302,10 @@ function navigate(page) {
 
 function getHighestUnlocked() {
   let h = -1;
-  const pData = STORE.progress.zip || STORE.progress;
+  const pZip = STORE.progress.zip || {};
   for (let i = 0; i < PUZZLES.length; i++) {
-    if (pData[i] && pData[i].stars > 0) h = i;
+    const data = pZip[i] || STORE.progress[i];
+    if (data && data.stars > 0) h = i;
     else break;
   }
   return h + 1; // current level to play
@@ -317,16 +318,17 @@ function renderLevelSelect() {
   const highest = getHighestUnlocked();
   let doneCount = 0;
   
-  const pData = STORE.progress.zip || STORE.progress;
+  const pZip = STORE.progress.zip || {};
   for (let i = 0; i < PUZZLES.length; i++) {
-    if (pData[i] && pData[i].stars > 0) doneCount++;
+    const data = pZip[i] || STORE.progress[i];
+    if (data && data.stars > 0) doneCount++;
   }
   
   const maxDisplay = Math.min(PUZZLES.length, highest + 11);
   
   for (let i = 0; i < maxDisplay; i++) {
     const p = PUZZLES[i];
-    const data = pData[i];
+    const data = pZip[i] || STORE.progress[i];
     const isUnlocked = i <= highest;
     const isDone = data && data.stars > 0;
     
