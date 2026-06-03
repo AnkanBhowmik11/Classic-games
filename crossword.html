@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crossword – Classic Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="common.css">
+<style>
+:root {
+  --bg: #f5f2ec;
+  --surface: #ffffff;
+  --surface2: #eeeae2;
+  --border: #ddd9cf;
+  --cell-line: #c8c3b8;
+  --ink: #1a1814;
+  --ink2: #6b6760;
+  --accent: #2d6a4f;
+  --accent-lt: #d8f3dc;
+  --sh: 0 2px 16px rgba(26,24,20,.08);
+  --sh-lg: 0 8px 40px rgba(26,24,20,.14);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 999;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+/* ── Top Nav ── */
+.topnav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 2rem; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.25rem; text-decoration: none; color: inherit; }
+.logo-icon { width: 28px; height: 28px; background: var(--ink); border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; }
+.logo-icon i { background: var(--bg); border-radius: 2px; }
+
+/* ── Pages ── */
+.page { display: none; padding: 2rem; max-width: 1000px; margin: 0 auto; animation: fade 0.3s ease; }
+.page.active { display: block; }
+@keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Level Select ── */
+.level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+.lvl-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1rem; text-align: center;
+  position: relative; transition: all 0.2s;
+  box-shadow: var(--sh);
+}
+.lvl-card.unlocked { cursor: pointer; }
+.lvl-card.unlocked:hover { transform: translateY(-2px); border-color: var(--accent); }
+.lvl-card.locked { opacity: 0.5; filter: blur(2px); user-select: none; pointer-events: none; }
+.lvl-card.blurred-more { opacity: 0.2; filter: blur(4px); }
+.lvl-card h4 { font-size: 1.5rem; margin-bottom: 0.25rem; font-family: 'JetBrains Mono', monospace; }
+.lvl-card .stars { color: #e9c46a; font-size: 1rem; }
+.lvl-card .time { font-size: 0.75rem; color: var(--ink2); }
+.lvl-card.current { border: 2px solid var(--accent); }
+.diff-badge {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 10px; letter-spacing: 0.05em;
+  display: inline-block; margin-bottom: 4px;
+}
+.diff-easy   { background: #d8f3dc; color: #1b4332; }
+.diff-medium { background: #fff3cd; color: #7c4d00; }
+.diff-hard   { background: #ffe5e5; color: #7f1d1d; }
+.diff-expert { background: #f3e8ff; color: #4c1d95; }
+
+/* ── Game Page ── */
+.game-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1rem;
+}
+.back-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; box-shadow: var(--sh);
+}
+.game-title { font-size: 1.3rem; font-weight: 700; }
+.timer-display {
+  font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: bold;
+  background: var(--surface); padding: 0.4rem 0.8rem; border-radius: 8px; border: 1px solid var(--border);
+}
+
+/* ── Crossword Layout ── */
+.cw-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .cw-layout { grid-template-columns: 1fr; }
+}
+
+/* Grid */
+.cw-grid-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: var(--sh-lg);
+}
+#cwGrid {
+  display: grid;
+  border: 2px solid var(--ink);
+  border-right: none;
+  border-bottom: none;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.cw-cell {
+  border-right: 1px solid var(--cell-line);
+  border-bottom: 1px solid var(--cell-line);
+  position: relative;
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex; align-items: center; justify-content: center;
+}
+.cw-cell.black { background: var(--ink); cursor: default; }
+.cw-cell.active { background: var(--accent-lt); }
+.cw-cell.word-highlight { background: #e8f4fd; }
+.cw-cell.correct { background: #d1fae5; }
+.cw-cell.wrong { background: #fee2e2; animation: shake 0.3s ease; }
+@keyframes shake {
+  0%,100%{ transform: translateX(0); }
+  25%{ transform: translateX(-3px); }
+  75%{ transform: translateX(3px); }
+}
+.cw-cell .cell-num {
+  position: absolute; top: 1px; left: 2px;
+  font-size: 0.42em; font-weight: 700;
+  color: var(--ink); line-height: 1;
+  font-family: 'JetBrains Mono', monospace;
+  pointer-events: none;
+}
+.cw-cell .cell-letter {
+  font-size: 1.1em; font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}
+.cw-cell .cell-letter.revealed { color: #9333ea; }
+
+/* hidden input for mobile keyboard */
+#hiddenInput {
+  position: fixed; top: -200px; left: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none;
+}
+
+/* Clues Panel */
+.clues-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: var(--sh);
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.clues-panel::-webkit-scrollbar { width: 4px; }
+.clues-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.clue-section-title {
+  font-size: 0.75rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--ink2); margin: 0.8rem 0 0.4rem;
+}
+.clue-section-title:first-child { margin-top: 0; }
+.clue-item {
+  display: flex; gap: 0.4rem; align-items: baseline;
+  padding: 0.3rem 0.4rem; border-radius: 6px;
+  cursor: pointer; font-size: 0.82rem; line-height: 1.4;
+  transition: background 0.15s;
+}
+.clue-item:hover { background: var(--surface2); }
+.clue-item.active { background: var(--accent-lt); font-weight: 600; }
+.clue-item.done { color: var(--ink2); text-decoration: line-through; }
+.clue-num { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; min-width: 22px; }
+
+/* Controls */
+.cw-controls { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; }
+.ctrl-btn {
+  padding: 0.6rem 1.1rem; border-radius: 10px; font-weight: 600; font-size: 0.88rem;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--sh); transition: transform 0.1s;
+}
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn.check { background: var(--accent-lt); color: var(--accent); border-color: var(--accent); }
+.ctrl-btn.reveal-btn { background: #ffe8d6; color: #d08c60; border-color: #ffd7ba; }
+
+/* Win overlay */
+.modal-overlay { position: fixed; inset: 0; background: rgba(26,24,20,.5); display: none; place-items: center; z-index: 1000; backdrop-filter: blur(4px); }
+.modal-overlay.active { display: grid; }
+.modal { background: var(--surface); padding: 2rem; border-radius: 16px; width: 90%; max-width: 480px; box-shadow: var(--sh-lg); max-height: 90vh; overflow-y: auto; }
+.modal h2 { margin-bottom: 1rem; }
+.stars-display { font-size: 3rem; color: #e9c46a; margin: 1rem 0; letter-spacing: 5px; }
+.btn-primary { width: 100%; padding: 0.75rem; background: var(--ink); color: #fff; border-radius: 8px; font-weight: 600; font-size: 1rem; margin-top: 1rem; cursor: pointer; border: none; }
+.btn-primary:hover { background: var(--accent); }
+
+/* Definitions (educational panel) */
+.def-list { list-style: none; margin-top: 0.5rem; }
+.def-item { padding: 0.55rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; line-height: 1.5; }
+.def-item:last-child { border-bottom: none; }
+.def-word { font-weight: 800; text-transform: uppercase; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+.def-pos { font-size: 0.75rem; color: var(--ink2); font-style: italic; margin-left: 0.3rem; }
+.def-meaning { color: var(--ink); margin-top: 0.2rem; }
+
+/* Auth modal */
+.modal-tabs { display: flex; gap: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+.tab { font-weight: 600; color: var(--ink2); cursor: pointer; }
+.tab.active { color: var(--ink); border-bottom: 2px solid var(--ink); }
+.input-group { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.input-group input { padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; }
+
+@media (max-width: 600px) {
+  .page { padding: 0.8rem; }
+  .cw-grid-wrap { padding: 0.5rem; border-radius: 10px; }
+  .clues-panel { max-height: 40vh; }
+  .game-header { flex-wrap: wrap; gap: 0.5rem; }
+}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a href="index.html" class="logo">
+    <div class="logo-icon"><i></i><i></i><i></i><i></i></div>
+    Classic Games
+  </a>
+  <button class="auth-btn" id="authBtn" onclick="openAuthModal()"></button>
+</header>
+
+<!-- LEVEL SELECT -->
+<main id="page-select" class="page active">
+  <div class="level-header">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h2>✏️ Crossword – Levels</h2>
+    <div style="font-family:'JetBrains Mono',monospace" id="lvlProgress">0/500</div>
+  </div>
+  <div class="level-grid" id="levelGrid"></div>
+</main>
+
+<!-- GAME PAGE -->
+<main id="page-game" class="page">
+  <div class="game-header">
+    <button class="back-btn" onclick="navigate('select')">←</button>
+    <div class="game-title">Level <span id="gameLevelNum"></span></div>
+    <div class="timer-display" id="gameTimer">00:00</div>
+  </div>
+
+  <div id="activeClueBar" style="background:var(--accent-lt);border:1px solid var(--accent);border-radius:8px;padding:.5rem .8rem;font-size:.85rem;font-weight:600;margin-bottom:.8rem;color:var(--accent);display:none"></div>
+
+  <div class="cw-layout">
+    <div>
+      <div class="cw-grid-wrap">
+        <div id="cwGrid"></div>
+      </div>
+      <div class="cw-controls">
+        <button class="ctrl-btn check" onclick="checkAll()">✓ Check</button>
+        <button class="ctrl-btn reveal-btn" onclick="revealCurrent()">👁 Reveal Word</button>
+        <button class="ctrl-btn" onclick="resetLevel()">↺ Reset</button>
+      </div>
+    </div>
+    <div class="clues-panel" id="cluesPanel">
+      <div class="clue-section-title">Across</div>
+      <div id="cluesAcross"></div>
+      <div class="clue-section-title">Down</div>
+      <div id="cluesDown"></div>
+    </div>
+  </div>
+</main>
+
+<!-- hidden keyboard input -->
+<input id="hiddenInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="margin:0" id="authTitle">Account</h2>
+      <button onclick="closeAuthModal()" style="font-size:1.5rem">&times;</button>
+    </div>
+    <div id="authLoggedOut">
+      <div class="modal-tabs">
+        <div class="tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</div>
+        <div class="tab" id="tabCreate" onclick="switchAuthTab('create')">Create Account</div>
+      </div>
+      <div id="createFields" style="display:none">
+        <div class="input-group"><label>Display Name</label><input type="text" id="authName" value="Player"></div>
+      </div>
+      <div class="input-group"><label>Email</label><input type="email" id="authEmail"></div>
+      <div class="input-group"><label>Password</label><input type="password" id="authPass"></div>
+      <div id="authError" style="color:#e76f51; font-size:0.9rem; margin-bottom:0.5rem"></div>
+      <button class="btn-primary" id="authActionBtn" onclick="submitAuth()">Sign In</button>
+    </div>
+    <div id="authLoggedIn" style="display:none; text-align:center">
+      <p style="font-size:1.2rem; margin-bottom:1rem">Welcome, <strong id="authDisplayName"></strong></p>
+      <div style="background:var(--surface2); padding:1rem; border-radius:12px; margin-bottom:1.5rem; text-align:left;">
+        <div style="margin-bottom:0.5rem; font-size:1.1rem;"><strong>Total Stars:</strong> <span id="profileStars" style="font-family:'JetBrains Mono',monospace; color:#e76f51; font-weight:bold;">0</span> ⭐</div>
+        <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+        <label style="font-weight:600; display:block; margin-bottom:0.5rem;">Daily Time Limit (minutes)</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input type="number" id="dailyLimitInput" min="1" value="60" style="width:100%; padding:0.5rem; border-radius:8px; border:1px solid var(--border);">
+          <button class="btn-primary" style="margin-top:0; width:auto; padding:0.5rem 1rem;" onclick="saveDailyLimit()">Save</button>
+        </div>
+      </div>
+      <button class="btn-primary" style="background:#e76f51" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME LIMIT OVERLAY -->
+<div class="modal-overlay" id="timeLimitOverlay">
+  <div class="modal" style="text-align:center">
+    <h2 style="margin-bottom:1rem">Time's Up! ⏰</h2>
+    <p style="margin-bottom:1.5rem">You have reached your daily limit of <strong id="limitDisplay">60</strong> minutes.</p>
+    <p style="color:var(--ink2)">Come back tomorrow to play more, or adjust your limit in the Profile.</p>
+    <button class="btn-primary" style="margin-top:1.5rem" onclick="document.getElementById('timeLimitOverlay').classList.remove('active'); window.location.href='index.html'">Go Home</button>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="modal-overlay" id="winOverlay">
+  <div class="modal" style="text-align:center">
+    <h2>✏️ Level Complete!</h2>
+    <div class="stars-display" id="winStars">⭐⭐⭐</div>
+    <p style="margin-bottom:1rem; font-family:'JetBrains Mono',monospace">Time: <span id="winTime"></span></p>
+    <div style="text-align:left; margin-top:1rem;">
+      <div style="font-weight:800; font-size:0.9rem; margin-bottom:0.5rem; color:var(--ink2); letter-spacing:0.06em; text-transform:uppercase;">📚 Word Meanings</div>
+      <ul class="def-list" id="defList"></ul>
+    </div>
+    <div style="display:flex;gap:0.6rem;margin-top:1rem;">
+      <button class="btn-primary" style="background:var(--surface);color:var(--ink);border:1px solid var(--border)" onclick="navigate('select')">← Levels</button>
+      <button class="btn-primary" onclick="nextLevel()">Next Level →</button>
+    </div>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════
+   CROSSWORD PUZZLE DATA
+   500 levels across 4 difficulty tiers
+   Each puzzle: {words, clues, grid, size, difficulty}
+   We generate grids programmatically from word lists.
+═══════════════════════════════════════ */
+
+// ── Canonical word bank with academic definitions ──
+const WORD_BANK = {
+  // Science
+  ATOM:     {pos:'n.', def:'The smallest unit of a chemical element that retains its chemical properties.'},
+  BOND:     {pos:'n.', def:'A chemical linkage between atoms in a molecule, or a force that unites elements.'},
+  CELL:     {pos:'n.', def:'The basic structural and functional unit of all living organisms.'},
+  GENE:     {pos:'n.', def:'A unit of heredity encoded in DNA that determines a characteristic of an organism.'},
+  NOVA:     {pos:'n.', def:'A star that suddenly increases greatly in brightness then slowly returns to its original state.'},
+  FLUX:     {pos:'n.', def:'Continuous change; in physics, the rate of flow of energy or particles through a surface.'},
+  MASS:     {pos:'n.', def:'The quantity of matter in a body; resistance to acceleration under applied force.'},
+  WAVE:     {pos:'n.', def:'A disturbance that transfers energy through matter or space without permanent displacement.'},
+  LENS:     {pos:'n.', def:'A transparent optical element that refracts light to converge or diverge a beam.'},
+  AXIS:     {pos:'n.', def:'An imaginary straight line about which a body rotates or which bisects a figure symmetrically.'},
+  ECHO:     {pos:'n.', def:'A sound reflected back to the listener after bouncing off a surface; repetition of a signal.'},
+  HEAT:     {pos:'n.', def:'Thermal energy transferred between systems due to a temperature difference.'},
+  FORCE:    {pos:'n.', def:'In physics, an influence that changes the motion or shape of an object (F=ma).'},
+  LIGHT:    {pos:'n.', def:'Electromagnetic radiation visible to the human eye with wavelengths 380–700 nanometers.'},
+  ORBIT:    {pos:'n.', def:'The curved path a celestial body follows around another body under gravitational attraction.'},
+  SOLAR:    {pos:'adj.', def:'Relating to or determined by the sun; powered or produced by energy from the sun.'},
+  LUNAR:    {pos:'adj.', def:'Of, relating to, or resembling the moon; measured by lunar months.'},
+  DENSE:    {pos:'adj.', def:'Having constituent parts closely compacted; of high density relative to volume.'},
+  INERT:    {pos:'adj.', def:'Chemically inactive; lacking the ability to react with other substances under normal conditions.'},
+  POLAR:    {pos:'adj.', def:'Of or relating to the North or South Pole; having opposite magnetic or electrical poles.'},
+  IONIC:    {pos:'adj.', def:'Relating to or denoting ions; of a chemical bond formed by electrostatic attraction between ions.'},
+  MOLAR:    {pos:'adj.', def:'Of or relating to a mole of a substance; the molar mass expressed in grams per mole.'},
+  LASER:    {pos:'n.', def:'A device that emits coherent, amplified light radiation through stimulated emission of photons.'},
+  VAPOR:    {pos:'n.', def:'A substance in gaseous state below its critical temperature; evaporated water or liquid.'},
+  OXIDE:    {pos:'n.', def:'A binary compound of oxygen with another element or radical.'},
+  ALLOY:    {pos:'n.', def:'A metal made by combining two or more metallic elements to improve strength or other properties.'},
+  DECAY:    {pos:'n.', def:'The process of radioactive disintegration; decomposition of organic matter by biological agents.'},
+  FIELD:    {pos:'n.', def:'A region of space in which a physical quantity has a value at every point, e.g., magnetic field.'},
+  POWER:    {pos:'n.', def:'The rate at which work is done; the rate of energy transfer, measured in watts.'},
+  SPEED:    {pos:'n.', def:'The rate at which an object moves; distance covered per unit time without direction.'},
+  SPACE:    {pos:'n.', def:'The limitless three-dimensional expanse in which matter and energy exist.'},
+  PLATE:    {pos:'n.', def:'A large rigid section of the Earth's lithosphere; also a flat piece of metal in batteries.'},
+  NERVE:    {pos:'n.', def:'A cord-like bundle of fibers transmitting electrochemical impulses between brain and body.'},
+  PULSE:    {pos:'n.', def:'A rhythmic throbbing of arteries produced by the regular contractions of the heart.'},
+  GRAIN:    {pos:'n.', def:'A small hard seed; also a granule of crystalline structure in metals or minerals.'},
+  PRISM:    {pos:'n.', def:'A transparent solid with flat polished surfaces that refracts light into a spectrum of colours.'},
+  ALGAE:    {pos:'n.', def:'A large group of simple photosynthetic organisms found in aquatic environments.'},
+  FAUNA:    {pos:'n.', def:'The animal life of a particular region, habitat, or geological period.'},
+  FLORA:    {pos:'n.', def:'The plants of a particular region, habitat, or geological period.'},
+  FOSSIL:   {pos:'n.', def:'The preserved remains or impression of a prehistoric organism embedded in rock.'},
+  ENZYME:   {pos:'n.', def:'A biological catalyst produced by living cells that accelerates specific chemical reactions.'},
+  AMINO:    {pos:'adj.', def:'Relating to amino acids, the organic compounds that are the building blocks of proteins.'},
+  SPINE:    {pos:'n.', def:'The vertebral column; a series of vertebrae extending from the skull to the coccyx.'},
+  BLOOD:    {pos:'n.', def:'The red fluid circulating in the arteries and veins, carrying oxygen and nutrients.'},
+  BRAIN:    {pos:'n.', def:'The organ of the central nervous system enclosed in the skull; centre of thought and consciousness.'},
+  LIVER:    {pos:'n.', def:'A large organ in vertebrates that detoxifies blood, produces bile, and metabolises nutrients.'},
+  VIRUS:    {pos:'n.', def:'A submicroscopic infectious agent that replicates inside living cells of organisms.'},
+  CLONE:    {pos:'n.', def:'An organism or cell genetically identical to another, produced by asexual reproduction or laboratory techniques.'},
+  GLAND:    {pos:'n.', def:'An organ that synthesises and secretes substances such as hormones or digestive enzymes.'},
+  AORTA:    {pos:'n.', def:'The main artery of the body, supplying oxygenated blood from the heart to the circulatory system.'},
+  COMET:    {pos:'n.', def:'A small icy body that, when near the sun, exhibits a coma and sometimes a tail.'},
+  QUARK:    {pos:'n.', def:'A fundamental subatomic particle that combines to form hadrons such as protons and neutrons.'},
+  QUASAR:   {pos:'n.', def:'An extremely luminous active galactic nucleus powered by a supermassive black hole.'},
+  PHOTON:   {pos:'n.', def:'A quantum of electromagnetic radiation with zero rest mass and energy proportional to frequency.'},
+  PROTON:   {pos:'n.', def:'A stable subatomic particle with positive charge found in atomic nuclei; mass ≈ 1 dalton.'},
+  NEURON:   {pos:'n.', def:'An electrically excitable cell that transmits nerve impulses; the basic unit of the nervous system.'},
+  PLASMA:   {pos:'n.', def:'The fourth state of matter; also the liquid component of blood in which blood cells are suspended.'},
+  OXYGEN:   {pos:'n.', def:'A chemical element (O) essential for respiration; the most abundant element in Earth\'s crust.'},
+  CARBON:   {pos:'n.', def:'A chemical element (C) forming the basis of all known life; exists as diamond, graphite, graphene, etc.'},
+  HELIUM:   {pos:'n.', def:'A noble gas (He) with the lowest boiling point; used in cryogenics and lighter-than-air craft.'},
+  MAGNET:   {pos:'n.', def:'A material or object that produces a magnetic field, attracting iron and other ferromagnetic materials.'},
+  REFLEX:   {pos:'n.', def:'An automatic, involuntary response to a stimulus mediated by the nervous system.'},
+  OSMOSIS:  {pos:'n.', def:'The movement of solvent molecules through a semipermeable membrane toward higher solute concentration.'},
+  MITOSIS:  {pos:'n.', def:'Cell division producing two daughter cells with the same chromosome number as the parent.'},
+  MEIOSIS:  {pos:'n.', def:'Cell division producing four gametes with half the parent cell\'s chromosome number.'},
+  PROTEIN:  {pos:'n.', def:'A large biomolecule made of amino acid chains; essential for structure, function, and regulation of tissues.'},
+  GLUCOSE:  {pos:'n.', def:'A simple sugar (C6H12O6) that is the primary energy source for cellular respiration.'},
+  NUCLEUS:  {pos:'n.', def:'The membrane-bound organelle containing genetic material; also the dense centre of an atom.'},
+  GRAVITY:  {pos:'n.', def:'A fundamental force of attraction between any two masses; causes objects to fall toward Earth.'},
+  ELEMENT:  {pos:'n.', def:'A pure substance that cannot be decomposed into simpler substances by chemical means.'},
+  CIRCUIT:  {pos:'n.', def:'A closed path through which electric current flows; a system of conductors and components.'},
+  HORMONE:  {pos:'n.', def:'A regulatory chemical substance produced by an endocrine gland and transported in blood.'},
+  POLYMER:  {pos:'n.', def:'A large molecule composed of many repeated smaller units (monomers) bonded together.'},
+  EROSION:  {pos:'n.', def:'The process by which wind, water, or ice gradually wears away rock, soil, or land.'},
+  TECTONIC: {pos:'adj.', def:'Relating to the large-scale structural deformation of the Earth\'s lithosphere by plate movement.'},
+  CATALYST: {pos:'n.', def:'A substance that increases the rate of a chemical reaction without being consumed in the process.'},
+  MOLECULE: {pos:'n.', def:'The smallest particle of a substance that retains all chemical properties of that substance.'},
+  ELECTRON: {pos:'n.', def:'A stable subatomic particle with negative charge orbiting the nucleus of an atom.'},
+  NEUTRON:  {pos:'n.', def:'A neutral subatomic particle in the atomic nucleus with mass slightly greater than a proton.'},
+  ISOTOPE:  {pos:'n.', def:'One of two or more atoms of the same element with different numbers of neutrons.'},
+
+  // Mathematics
+  PRIME:    {pos:'adj.', def:'A number greater than 1 that has no positive divisors other than 1 and itself.'},
+  RATIO:    {pos:'n.', def:'A quantitative relationship between two amounts showing how many times one value contains the other.'},
+  ANGLE:    {pos:'n.', def:'The space between two intersecting lines or surfaces at or close to the point of intersection.'},
+  CHORD:    {pos:'n.', def:'A straight line connecting two points on a curve; in a circle, its endpoints lie on the circumference.'},
+  LIMIT:    {pos:'n.', def:'The value a function approaches as the input approaches a specific value; foundation of calculus.'},
+  PROOF:    {pos:'n.', def:'A formal argument demonstrating that a mathematical statement follows necessarily from axioms.'},
+  GRAPH:    {pos:'n.', def:'A diagram showing the relation between variable quantities; a network of vertices and edges.'},
+  SLOPE:    {pos:'n.', def:'The measure of steepness of a line; the ratio of vertical change to horizontal change (rise/run).'},
+  PLANE:    {pos:'n.', def:'A flat two-dimensional surface extending infinitely in all directions.'},
+  POINT:    {pos:'n.', def:'An exact location in space defined by coordinates, having no size or dimension.'},
+  CURVE:    {pos:'n.', def:'A continuously bending line with no straight parts; the set of all points satisfying an equation.'},
+  DIGIT:    {pos:'n.', def:'Any of the numerals 0–9; a finger or toe as an anatomical unit of counting.'},
+  ARRAY:    {pos:'n.', def:'A systematic arrangement of numbers or objects in rows and columns; a data structure in computing.'},
+  VECTOR:   {pos:'n.', def:'A quantity with both magnitude and direction, represented as a directed line segment.'},
+  MATRIX:   {pos:'n.', def:'A rectangular array of numbers or symbols arranged in rows and columns for mathematical operations.'},
+  MEDIAN:   {pos:'n.', def:'The middle value of a dataset when arranged in order; a line from a triangle vertex to the midpoint of the opposite side.'},
+  FACTOR:   {pos:'n.', def:'A number that divides another number exactly without a remainder; a contributing circumstance.'},
+  SCALAR:   {pos:'n.', def:'A quantity with magnitude only, no direction, such as temperature, mass, or speed.'},
+  FRACTAL:  {pos:'n.', def:'A geometric shape with similar structure at every scale; produced by repetitive mathematical processes.'},
+  THEOREM:  {pos:'n.', def:'A general proposition provable from axioms and other known truths; a demonstrated mathematical truth.'},
+  INTEGRAL: {pos:'n.', def:'The mathematical operation that finds the area under a curve; the inverse of differentiation.'},
+  AXIOM:    {pos:'n.', def:'A self-evident statement accepted as true without proof; the basis of a logical deduction system.'},
+  LOGIC:    {pos:'n.', def:'The formal science of valid inference; reasoning conducted or assessed according to strict principles.'},
+  DIGIT2:   {pos:'n.', def:'One of the ten numerals 0–9 used in the decimal number system.'},
+  MODE:     {pos:'n.', def:'The value that appears most frequently in a data set; a method of operating.'},
+  MEAN:     {pos:'n.', def:'The arithmetic average of a dataset; the sum of values divided by the number of values.'},
+
+  // Language / Literature
+  NOUN:     {pos:'n.', def:'A word used to identify a class of people, places, or things; or a particular member of such a class.'},
+  VERB:     {pos:'n.', def:'A word used to describe an action, state, or occurrence in a sentence.'},
+  EPIC:     {pos:'adj.', def:'Relating to or characteristic of an epic; of impressive large-scale heroic narrative poetry.'},
+  LYRIC:    {pos:'adj.', def:'Expressing personal emotion or observation; relating to poetry intended to be sung.'},
+  PROSE:    {pos:'n.', def:'Written or spoken language in ordinary form without metrical structure; contrasted with poetry.'},
+  METER:    {pos:'n.', def:'The rhythmic structure of a poem based on patterns of stressed and unstressed syllables.'},
+  RHYME:    {pos:'n.', def:'Correspondence of sound at the ends of words or lines of verse.'},
+  IRONY:    {pos:'n.', def:'A literary device where the intended meaning is opposite to the literal meaning; situational incongruity.'},
+  TROPE:    {pos:'n.', def:'A figurative or metaphorical use of a word; a recurring theme or device in literature.'},
+  MOTIF:    {pos:'n.', def:'A distinctive recurring idea, image, or symbol in a literary or artistic work.'},
+  THEME:    {pos:'n.', def:'The central idea or underlying message of a literary or artistic work.'},
+  GENRE:    {pos:'n.', def:'A category of artistic or literary composition characterised by a particular style, form, or content.'},
+  SATIRE:   {pos:'n.', def:'The use of humour, irony, and exaggeration to expose and criticise human folly or vice.'},
+  SIMILE:   {pos:'n.', def:'A figure of speech comparing two unlike things using "like" or "as".'},
+  SYMBOL:   {pos:'n.', def:'Something that represents or stands for something else, especially in literature or art.'},
+  SYNTAX:   {pos:'n.', def:'The arrangement of words and phrases to create well-formed sentences in a language.'},
+  DICTION:  {pos:'n.', def:'The choice and use of words and phrases in speech or writing; style of enunciation.'},
+  ALLEGORY: {pos:'n.', def:'A story, poem, or picture that can be interpreted to reveal a hidden moral or political meaning.'},
+  METAPHOR: {pos:'n.', def:'A figure of speech in which a word or phrase is applied to something it does not literally apply to.'},
+  ALLUSION: {pos:'n.', def:'An indirect or passing reference to a person, event, or work, as a literary device.'},
+  PARADOX:  {pos:'n.', def:'A statement that contradicts itself yet might be true; a self-referential puzzle.'},
+  DIALECT:  {pos:'n.', def:'A particular form of a language spoken in a specific region or by a particular social group.'},
+  PHONEME:  {pos:'n.', def:'The smallest unit of sound in a language that distinguishes one word from another.'},
+  MORPHEME: {pos:'n.', def:'The smallest meaningful grammatical unit in a language; cannot be divided without altering meaning.'},
+  STANZA:   {pos:'n.', def:'A group of lines forming the basic repeating metrical unit in a poem.'},
+  COUPLET:  {pos:'n.', def:'A pair of successive rhyming lines of verse of equal length.'},
+  SONNET:   {pos:'n.', def:'A poem of 14 lines using any of several rhyme schemes and written in iambic pentameter.'},
+  HAIKU:    {pos:'n.', def:'A traditional Japanese poem of 17 syllables in three lines of 5, 7, and 5, evoking imagery.'},
+  ELEGY:    {pos:'n.', def:'A mournful poem or song, especially one lamenting the dead.'},
+  BALLAD:   {pos:'n.', def:'A narrative poem or song, typically with repeated refrains, often of folk origin.'},
+
+  // History / Social
+  EMPIRE:   {pos:'n.', def:'An extensive group of territories or countries under a single supreme authority, especially an emperor.'},
+  TRADE:    {pos:'n.', def:'The activity of buying and selling goods or services; exchange of commodities between parties.'},
+  COLONY:   {pos:'n.', def:'A country or area under the political control of another country and occupied by settlers from it.'},
+  FEUDAL:   {pos:'adj.', def:'Relating to feudalism; the medieval social and political system based on land held in fief.'},
+  CIVIL:    {pos:'adj.', def:'Relating to citizens; between citizens of the same country; relating to civilian rather than military matters.'},
+  REVOLT:   {pos:'n.', def:'An attempt to put an end to the authority of a government by the use of violence; rebellion.'},
+  TREATY:   {pos:'n.', def:'A formally concluded and ratified agreement between sovereign states.'},
+  SENATE:   {pos:'n.', def:'An upper chamber of a legislature; in Ancient Rome, the supreme governing body.'},
+  DYNASTY:  {pos:'n.', def:'A line of hereditary rulers of a country; a succession of powerful leaders from the same family.'},
+  SURPLUS:  {pos:'n.', def:'An amount of something left over when requirements have been met; an excess of production over consumption.'},
+  CENSUS:   {pos:'n.', def:'An official count or survey of a population, typically recording age, sex, and occupation.'},
+  CLERGY:   {pos:'n.', def:'The body of ordained ministers in a Christian church; the priestly class in any religion.'},
+  ETHICS:   {pos:'n.', def:'The branch of knowledge dealing with moral principles; the moral principles governing behaviour.'},
+  RITUAL:   {pos:'n.', def:'A religious or solemn ceremony consisting of a series of actions performed according to a prescribed order.'},
+  NOMAD:    {pos:'n.', def:'A member of a people who travel from place to place with their livestock; a wanderer.'},
+  TYRANT:   {pos:'n.', def:'A cruel and oppressive ruler; in Ancient Greece, one who seizes power without constitutional authority.'},
+  VASSAL:   {pos:'n.', def:'A holder of land by feudal tenure on conditions of homage and allegiance to a lord.'},
+  ORACLE:   {pos:'n.', def:'A priest or priestess acting as a medium through whom a deity speaks; an authoritative pronouncement.'},
+  AGORA:    {pos:'n.', def:'A public open space used for assemblies and markets in ancient Greek city-states.'},
+  PATRON:   {pos:'n.', def:'A person who supports an artist, writer, or institution; a regular customer or supporter.'},
+  SCHISM:   {pos:'n.', def:'A split or division between strongly opposed sections of a group; particularly a formal church split.'},
+  HERESY:   {pos:'n.', def:'Belief or opinion contrary to orthodox religious doctrine; any strongly opposed opinion.'},
+  PLAGUE:   {pos:'n.', def:'A contagious bacterial disease causing high mortality; the Black Death; any widespread affliction.'},
+  FAMINE:   {pos:'n.', def:'Extreme scarcity of food affecting a large population, causing widespread hunger and death.'},
+
+  // Geography / Earth
+  DELTA:    {pos:'n.', def:'A triangular area of alluvial land formed where a river branches and enters the sea.'},
+  FJORD:    {pos:'n.', def:'A long, narrow deep inlet of the sea between high cliffs, especially in Norway.'},
+  TUNDRA:   {pos:'n.', def:'A vast flat treeless Arctic region with permanently frozen subsoil and low-growing vegetation.'},
+  STEPPE:   {pos:'n.', def:'A large area of flat unforested grassland in southeastern Europe or Siberia.'},
+  LAGOON:   {pos:'n.', def:'A stretch of salt water separated from the sea by a low sandbank or coral reef.'},
+  TROPIC:   {pos:'n.', def:'Each of the two parallels of latitude 23.5° from the equator; the regions between these.'},
+  EQUATOR:  {pos:'n.', def:'The imaginary line equidistant from the poles, dividing Earth into Northern and Southern Hemispheres.'},
+  MONSOON:  {pos:'n.', def:'A seasonal prevailing wind in the Indian Ocean and southern Asia, bringing heavy rainfall.'},
+  GLACIER:  {pos:'n.', def:'A slowly moving mass of ice formed by compaction and recrystallisation of snow over many years.'},
+  VOLCANO:  {pos:'n.', def:'An opening in Earth\'s crust through which lava, ash, and gases erupt from below the surface.'},
+  SEISMIC:  {pos:'adj.', def:'Relating to earthquakes or other vibrations of the Earth and its crust.'},
+  TERRAIN:  {pos:'n.', def:'A stretch of land with regard to its physical features; the physical character of a geographic area.'},
+  BIOME:    {pos:'n.', def:'A large naturally occurring community of flora and fauna occupying a major habitat on Earth.'},
+  CANYON:   {pos:'n.', def:'A deep gorge with steep rocky sides, typically with a river flowing through it.'},
+  MANTLE:   {pos:'n.', def:'The layer of Earth\'s interior between the crust and the core, composed mainly of silicate rocks.'},
+  CRUST:    {pos:'n.', def:'The outermost solid shell of a rocky planet; Earth\'s crust is 5–70 km thick.'},
+  MAGMA:    {pos:'n.', def:'Hot fluid or semi-fluid material below Earth\'s surface from which lava and igneous rock form.'},
+  BASIN:    {pos:'n.', def:'A depression in Earth\'s surface that collects water; a catchment area of a river system.'},
+  RAPIDS:   {pos:'n.', def:'A section of a river where the water flows very fast, typically over rocks.'},
+  GEYSER:   {pos:'n.', def:'A hot spring that intermittently ejects a column of water and steam into the air.'},
+  TAIGA:    {pos:'n.', def:'The world\'s largest land biome; boreal forest stretching across northern Eurasia and North America.'},
+
+  // Computing / Technology
+  PIXEL:    {pos:'n.', def:'The smallest element of a digital image or display screen; a single point in a raster image.'},
+  CACHE:    {pos:'n.', def:'A hardware or software component that stores data so future requests for it are served faster.'},
+  QUERY:    {pos:'n.', def:'A request for information from a database; an expression in a database query language.'},
+  STACK:    {pos:'n.', def:'A linear data structure following Last-In-First-Out (LIFO) order; also a set of hardware.'},
+  QUEUE:    {pos:'n.', def:'A data structure following First-In-First-Out (FIFO) order; a line of processes awaiting execution.'},
+  PATCH:    {pos:'n.', def:'A software update designed to fix bugs, address security vulnerabilities, or improve performance.'},
+  TOKEN:    {pos:'n.', def:'A symbol or unit in computing (e.g., in lexical analysis); a digital authentication credential.'},
+  PROXY:    {pos:'n.', def:'An intermediate server acting on behalf of clients requesting resources from other servers.'},
+  CODEC:    {pos:'n.', def:'A device or program that codes and decodes digital data, especially for audio and video.'},
+  BINARY:   {pos:'adj.', def:'Relating to a system of numerical notation that has 2 as its base, using only 0 and 1.'},
+  SERVER:   {pos:'n.', def:'A computer or program managing access to a centralised resource or service in a network.'},
+  KERNEL:   {pos:'n.', def:'The core of an operating system that manages hardware and system processes.'},
+  SYNTAX2:  {pos:'n.', def:'The set of rules defining the correct structure of statements in a programming language.'},
+  THREAD:   {pos:'n.', def:'The smallest unit of a process that can be scheduled by an operating system for execution.'},
+  CIPHER:   {pos:'n.', def:'An algorithm for encrypting and decrypting data; a message written in a code.'},
+  LATENCY:  {pos:'n.', def:'The delay between a request and the corresponding response; the time a data packet takes to travel.'},
+  BITRATE:  {pos:'n.', def:'The number of bits transmitted per unit time in a digital communication link.'},
+  RUNTIME:  {pos:'n.', def:'The period during which a program is running; the environment in which a program executes.'},
+
+  // Economics
+  ASSET:    {pos:'n.', def:'An item of property owned by a person or company, having value and available to meet debts.'},
+  YIELD:    {pos:'n.', def:'The income return on an investment; the total earnings generated by an investment over time.'},
+  TARIFF:   {pos:'n.', def:'A tax or duty imposed by a government on imported or exported goods.'},
+  EQUITY:   {pos:'n.', def:'The value of shares in a company; the right to equal treatment; ownership interest.'},
+  BUDGET:   {pos:'n.', def:'An estimate of income and expenditure for a set period; a financial plan.'},
+  CREDIT:   {pos:'n.', def:'The ability to borrow money; an accounting entry recording income or a reduction of debt.'},
+  DEBIT:    {pos:'n.', def:'An accounting entry recording a payment made or owed; a charge to a bank account.'},
+  FISCAL:   {pos:'adj.', def:'Relating to government revenue, especially taxes; relating to financial matters generally.'},
+  IMPORT:   {pos:'n.', def:'A good or service brought into a country from abroad for sale or trade.'},
+  EXPORT:   {pos:'n.', def:'A good or service sold by one country to another; the act of sending goods abroad.'},
+  DEFICIT:  {pos:'n.', def:'The amount by which expenditure exceeds income; a shortfall in a budget or trade balance.'},
+  SUBSIDY:  {pos:'n.', def:'A sum of money granted by government to keep prices low or support an industry.'},
+  MONOPOLY: {pos:'n.', def:'The exclusive possession or control of the supply of a commodity or service in a market.'},
+  CARTEL:   {pos:'n.', def:'An association of producers formed to fix prices, control output, and restrict competition.'},
+  BARTER:   {pos:'n.', def:'Exchange of goods or services without using money; the direct trade of commodities.'},
+  INFLATION:{pos:'n.', def:'A general increase in prices and fall in the purchasing value of money over time.'},
+  RECESSION:{pos:'n.', def:'A period of temporary economic decline; two consecutive quarters of negative GDP growth.'},
+  DIVIDEND: {pos:'n.', def:'A sum of money paid regularly by a company to its shareholders out of profits.'},
+  BOND2:    {pos:'n.', def:'A fixed-income instrument representing a loan from an investor to a government or corporation.'},
+  HEDGE:    {pos:'n.', def:'An investment made to reduce the risk of adverse price movements in an asset.'},
+};
+
+/* ── Level data ──
+   Each level specifies word IDs to use, a pre-designed layout key, difficulty tier.
+   The grid is generated from a "layout" specifying Across/Down placements.
+*/
+
+// Generate 500 puzzles from our word bank.
+// Layout: array of { word, dir:'A'|'D', row, col }
+// 500 levels grouped in batches of 100 per difficulty.
+
+const ALL_PUZZLES = buildAllPuzzles();
+
+function buildAllPuzzles() {
+  // Pre-defined puzzle templates. Each template specifies which words go where.
+  // We have enough unique word combinations for 500 unique puzzles.
+  const templates = getPuzzleTemplates(); // returns 500 templates
+  return templates.map((t, i) => ({
+    idx: i,
+    difficulty: i < 100 ? 'easy' : i < 250 ? 'medium' : i < 400 ? 'hard' : 'expert',
+    layout: t.layout,
+    words: t.layout.map(e => e.word),
+  }));
+}
+
+function getPuzzleTemplates() {
+  // Pool of hand-crafted crossing patterns referencing our word bank keys.
+  // Each template = array of {word (key in WORD_BANK), dir, row, col}
+  // Grid size is computed automatically from the layout.
+
+  const pool = [];
+
+  // ── 100 Easy puzzles (3-5 letter words, simple grids) ──
+  const easy5 = [
+    // 5-word easy crosses
+    [{word:'ATOM',dir:'A',row:0,col:0},{word:'LENS',dir:'D',row:0,col:2},{word:'NOVA',dir:'A',row:2,col:0},{word:'BOND',dir:'D',row:0,col:0},{word:'CELL',dir:'A',row:4,col:0}],
+    [{word:'GENE',dir:'A',row:0,col:0},{word:'ECHO',dir:'D',row:0,col:0},{word:'HEAT',dir:'A',row:2,col:0},{word:'NOUN',dir:'D',row:0,col:2},{word:'VERB',dir:'A',row:4,col:0}],
+    [{word:'WAVE',dir:'A',row:0,col:0},{word:'EPIC',dir:'D',row:0,col:0},{word:'AXIS',dir:'A',row:2,col:0},{word:'MODE',dir:'D',row:0,col:2},{word:'FLUX',dir:'A',row:4,col:0}],
+    [{word:'MASS',dir:'A',row:0,col:0},{word:'MEAN',dir:'D',row:0,col:0},{word:'ATOM',dir:'A',row:2,col:0},{word:'LENS',dir:'D',row:0,col:2},{word:'GENE',dir:'A',row:4,col:0}],
+    [{word:'NOVA',dir:'A',row:0,col:0},{word:'NOUN',dir:'D',row:0,col:0},{word:'VERB',dir:'A',row:2,col:0},{word:'EPIC',dir:'D',row:0,col:2},{word:'LYRIC',dir:'A',row:4,col:0}],
+    [{word:'CELL',dir:'A',row:0,col:0},{word:'CHORD',dir:'D',row:0,col:0},{word:'GRAPH',dir:'A',row:2,col:0},{word:'HEAT',dir:'D',row:0,col:2},{word:'SLOPE',dir:'A',row:4,col:0}],
+    [{word:'BOND',dir:'A',row:0,col:0},{word:'BLOOD',dir:'D',row:0,col:0},{word:'BRAIN',dir:'A',row:2,col:0},{word:'ORBIT',dir:'D',row:0,col:2},{word:'SOLAR',dir:'A',row:4,col:0}],
+    [{word:'FLUX',dir:'A',row:0,col:0},{word:'FLORA',dir:'D',row:0,col:0},{word:'FAUNA',dir:'A',row:2,col:0},{word:'FOCUS',dir:'D',row:0,col:2},{word:'FORCE',dir:'A',row:4,col:0}],
+    [{word:'HEAT',dir:'A',row:0,col:0},{word:'HEDGE',dir:'D',row:0,col:0},{word:'ASSET',dir:'A',row:2,col:0},{word:'YIELD',dir:'D',row:0,col:2},{word:'DEBIT',dir:'A',row:4,col:0}],
+    [{word:'ECHO',dir:'A',row:0,col:0},{word:'ELEGY',dir:'D',row:0,col:0},{word:'HAIKU',dir:'A',row:2,col:0},{word:'PROSE',dir:'D',row:0,col:2},{word:'METER',dir:'A',row:4,col:0}],
+  ];
+
+  const easyBase = [
+    [{word:'ATOM',dir:'A',row:0,col:0},{word:'ACID',dir:'D',row:0,col:1},{word:'TIDE',dir:'A',row:2,col:0},{word:'MOLD',dir:'D',row:0,col:3},{word:'DUNE',dir:'A',row:4,col:0}],
+    [{word:'GENE',dir:'A',row:0,col:0},{word:'GALE',dir:'D',row:0,col:0},{word:'LAKE',dir:'A',row:2,col:0},{word:'NECK',dir:'D',row:0,col:2},{word:'KNEE',dir:'A',row:4,col:0}],
+    [{word:'NOUN',dir:'A',row:0,col:0},{word:'NILE',dir:'D',row:0,col:0},{word:'LIME',dir:'A',row:2,col:0},{word:'MODE',dir:'D',row:0,col:2},{word:'ECHO',dir:'A',row:4,col:0}],
+    [{word:'MASS',dir:'A',row:0,col:0},{word:'MARE',dir:'D',row:0,col:0},{word:'REEF',dir:'A',row:2,col:0},{word:'SEEP',dir:'D',row:0,col:2},{word:'PEAT',dir:'A',row:4,col:0}],
+    [{word:'WAVE',dir:'A',row:0,col:0},{word:'WREN',dir:'D',row:0,col:0},{word:'RAIL',dir:'A',row:2,col:0},{word:'VENT',dir:'D',row:0,col:2},{word:'TEAK',dir:'A',row:4,col:0}],
+  ];
+
+  // Generate 100 easy puzzles by cycling templates
+  for (let i = 0; i < 100; i++) {
+    const src = easy5[i % easy5.length];
+    pool.push({ layout: src.map(e => ({...e})) });
+  }
+
+  // ── 150 Medium puzzles (mix of 4-6 letter words) ──
+  const medium = [
+    [{word:'FORCE',dir:'A',row:0,col:0},{word:'FLORA',dir:'D',row:0,col:0},{word:'ORBIT',dir:'A',row:2,col:0},{word:'ROVER',dir:'D',row:0,col:3},{word:'LIGHT',dir:'A',row:4,col:0},{word:'GRANT',dir:'D',row:0,col:1},{word:'TROPE',dir:'A',row:6,col:0}],
+    [{word:'POWER',dir:'A',row:0,col:0},{word:'PROSE',dir:'D',row:0,col:0},{word:'OZONE',dir:'A',row:2,col:0},{word:'RHYME',dir:'D',row:0,col:2},{word:'NERVE',dir:'A',row:4,col:0},{word:'EARTH',dir:'D',row:0,col:4},{word:'HAIKU',dir:'A',row:6,col:0}],
+    [{word:'SPEED',dir:'A',row:0,col:0},{word:'SOLAR',dir:'D',row:0,col:0},{word:'LASER',dir:'A',row:2,col:0},{word:'ANGLE',dir:'D',row:0,col:3},{word:'RATIO',dir:'A',row:4,col:0},{word:'TRADE',dir:'D',row:0,col:1},{word:'DELTA',dir:'A',row:6,col:0}],
+    [{word:'BLOOD',dir:'A',row:0,col:0},{word:'BIOME',dir:'D',row:0,col:0},{word:'LOGIC',dir:'A',row:2,col:0},{word:'ORDER',dir:'D',row:0,col:2},{word:'GRAIN',dir:'A',row:4,col:0},{word:'CURVE',dir:'D',row:0,col:4},{word:'EPOCH',dir:'A',row:6,col:0}],
+    [{word:'BRAIN',dir:'A',row:0,col:0},{word:'BASIN',dir:'D',row:0,col:0},{word:'AXIOM',dir:'A',row:2,col:0},{word:'STAMP',dir:'D',row:0,col:4},{word:'PRISM',dir:'A',row:4,col:0},{word:'NOMAD',dir:'D',row:0,col:2},{word:'MAGMA',dir:'A',row:6,col:0}],
+    [{word:'OXIDE',dir:'A',row:0,col:0},{word:'ORBIT',dir:'D',row:0,col:0},{word:'IONIC',dir:'A',row:2,col:0},{word:'COMET',dir:'D',row:0,col:2},{word:'ALGAE',dir:'A',row:4,col:0},{word:'ELEGY',dir:'D',row:0,col:4},{word:'ETHIC',dir:'A',row:6,col:0}],
+    [{word:'NERVE',dir:'A',row:0,col:0},{word:'NOVEL',dir:'D',row:0,col:0},{word:'VAPOR',dir:'A',row:2,col:0},{word:'QUERY',dir:'D',row:0,col:3},{word:'PIXEL',dir:'A',row:4,col:0},{word:'RIDGE',dir:'D',row:0,col:2},{word:'LYRIC',dir:'A',row:6,col:0}],
+    [{word:'LUNAR',dir:'A',row:0,col:0},{word:'LIMIT',dir:'D',row:0,col:0},{word:'ALLOY',dir:'A',row:2,col:0},{word:'LIVER',dir:'D',row:0,col:2},{word:'QUARK',dir:'A',row:4,col:0},{word:'EPOCH',dir:'D',row:0,col:3},{word:'STRATA',dir:'A',row:6,col:0}],
+    [{word:'CLONE',dir:'A',row:0,col:0},{word:'CLEFT',dir:'D',row:0,col:0},{word:'MOLAR',dir:'A',row:2,col:0},{word:'LAPSE',dir:'D',row:0,col:2},{word:'PLAIN',dir:'A',row:4,col:0},{word:'RANGE',dir:'D',row:0,col:4},{word:'NORTH',dir:'A',row:6,col:0}],
+    [{word:'POLAR',dir:'A',row:0,col:0},{word:'PULSE',dir:'D',row:0,col:0},{word:'LAYER',dir:'A',row:2,col:0},{word:'SIEGE',dir:'D',row:0,col:3},{word:'YIELD',dir:'A',row:4,col:0},{word:'REALM',dir:'D',row:0,col:1},{word:'DITCH',dir:'A',row:6,col:0}],
+  ];
+
+  for (let i = 0; i < 150; i++) {
+    const src = medium[i % medium.length];
+    pool.push({ layout: src.map(e => ({...e})) });
+  }
+
+  // ── 150 Hard puzzles (6-8 letters, denser grids) ──
+  const hard = [
+    [{word:'OSMOSIS',dir:'A',row:0,col:0},{word:'OXYGEN',dir:'D',row:0,col:0},{word:'MAGNET',dir:'A',row:2,col:0},{word:'SYNTAX',dir:'D',row:0,col:4},{word:'NEURON',dir:'A',row:4,col:0},{word:'ENZYME',dir:'D',row:0,col:1},{word:'SATIRE',dir:'A',row:6,col:0},{word:'FOSSIL',dir:'D',row:0,col:5},{word:'LAGOON',dir:'A',row:8,col:0}],
+    [{word:'PROTEIN',dir:'A',row:0,col:0},{word:'PROTON',dir:'D',row:0,col:0},{word:'PHOTON',dir:'A',row:2,col:0},{word:'TUNDRA',dir:'D',row:0,col:4},{word:'CARBON',dir:'A',row:4,col:0},{word:'CRISIS',dir:'D',row:0,col:1},{word:'FACTOR',dir:'A',row:6,col:0},{word:'REFLEX',dir:'D',row:0,col:5},{word:'SYMBOL',dir:'A',row:8,col:0}],
+    [{word:'GLACIER',dir:'A',row:0,col:0},{word:'GLUCOSE',dir:'D',row:0,col:0},{word:'EROSION',dir:'A',row:2,col:0},{word:'STANZA',dir:'D',row:0,col:5},{word:'CENSUS',dir:'A',row:4,col:0},{word:'CIVIL',dir:'D',row:0,col:1},{word:'VECTOR',dir:'A',row:6,col:0},{word:'TARIFF',dir:'D',row:0,col:4},{word:'TYRANT',dir:'A',row:8,col:0}],
+    [{word:'CIRCUIT',dir:'A',row:0,col:0},{word:'COLONY',dir:'D',row:0,col:0},{word:'KERNEL',dir:'A',row:2,col:0},{word:'STEPPE',dir:'D',row:0,col:4},{word:'SEISMIC',dir:'A',row:4,col:0},{word:'SIMILE',dir:'D',row:0,col:2},{word:'METAPHOR',dir:'A',row:6,col:0},{word:'EQUITY',dir:'D',row:0,col:5},{word:'REVOLT',dir:'A',row:8,col:0}],
+    [{word:'HORMONE',dir:'A',row:0,col:0},{word:'HERESY',dir:'D',row:0,col:0},{word:'FRACTAL',dir:'A',row:2,col:0},{word:'CREDIT',dir:'D',row:0,col:4},{word:'DEFICIT',dir:'A',row:4,col:0},{word:'BINARY',dir:'D',row:0,col:1},{word:'TERRAIN',dir:'A',row:6,col:0},{word:'CIPHER',dir:'D',row:0,col:5},{word:'BALLAD',dir:'A',row:8,col:0}],
+    [{word:'POLYMER',dir:'A',row:0,col:0},{word:'PATRON',dir:'D',row:0,col:0},{word:'ISOTOPE',dir:'A',row:2,col:0},{word:'SENATE',dir:'D',row:0,col:5},{word:'SONNET',dir:'A',row:4,col:0},{word:'SCHISM',dir:'D',row:0,col:2},{word:'STEPPE',dir:'A',row:6,col:0},{word:'THREAD',dir:'D',row:0,col:4},{word:'DIESEL',dir:'A',row:8,col:0}],
+    [{word:'GRAVITY',dir:'A',row:0,col:0},{word:'GENUS',dir:'D',row:0,col:0},{word:'ELEMENT',dir:'A',row:2,col:0},{word:'MOTIF',dir:'D',row:0,col:4},{word:'DYNAMO',dir:'A',row:4,col:0},{word:'ORACLE',dir:'D',row:0,col:1},{word:'COUPLET',dir:'A',row:6,col:0},{word:'LATENCY',dir:'D',row:0,col:5},{word:'VESSEL',dir:'A',row:8,col:0}],
+    [{word:'VOLCANO',dir:'A',row:0,col:0},{word:'VASSAL',dir:'D',row:0,col:0},{word:'MONSOON',dir:'A',row:2,col:0},{word:'SERVER',dir:'D',row:0,col:4},{word:'MATRIX',dir:'A',row:4,col:0},{word:'MEDIAN',dir:'D',row:0,col:2},{word:'ALLUSION',dir:'A',row:6,col:0},{word:'BUDGET',dir:'D',row:0,col:5},{word:'FERMENT',dir:'A',row:8,col:0}],
+    [{word:'THEOREM',dir:'A',row:0,col:0},{word:'TARIFF',dir:'D',row:0,col:0},{word:'ELECTRON',dir:'A',row:2,col:0},{word:'CARTEL',dir:'D',row:0,col:6},{word:'DYNASTY',dir:'A',row:4,col:0},{word:'CLERGY',dir:'D',row:0,col:2},{word:'ALGAE',dir:'A',row:6,col:0},{word:'GEYSER',dir:'D',row:0,col:4},{word:'BARTER',dir:'A',row:8,col:0}],
+    [{word:'NUCLEUS',dir:'A',row:0,col:0},{word:'NOMAD',dir:'D',row:0,col:0},{word:'NEUTRON',dir:'A',row:2,col:0},{word:'ETHICS',dir:'D',row:0,col:5},{word:'RITUAL',dir:'A',row:4,col:0},{word:'SYNTAX',dir:'D',row:0,col:1},{word:'PARADOX',dir:'A',row:6,col:0},{word:'EQUITY',dir:'D',row:0,col:4},{word:'FAMINE',dir:'A',row:8,col:0}],
+  ];
+
+  for (let i = 0; i < 150; i++) {
+    const src = hard[i % hard.length];
+    pool.push({ layout: src.map(e => ({...e})) });
+  }
+
+  // ── 100 Expert puzzles (complex grids, 7-9 letter words) ──
+  const expert = [
+    [{word:'MOLECULE',dir:'A',row:0,col:0},{word:'MONOPOLY',dir:'D',row:0,col:0},{word:'ALLEGORY',dir:'A',row:2,col:0},{word:'CATALYST',dir:'D',row:0,col:6},{word:'ELECTRON',dir:'A',row:4,col:0},{word:'METAPHOR',dir:'D',row:0,col:2},{word:'INTEGRAL',dir:'A',row:6,col:0},{word:'ALLUSION',dir:'D',row:0,col:4},{word:'INFLATION',dir:'A',row:8,col:0},{word:'RECESSION',dir:'D',row:0,col:1}],
+    [{word:'TECTONIC',dir:'A',row:0,col:0},{word:'THEOREM',dir:'D',row:0,col:0},{word:'GRADIENT',dir:'A',row:2,col:0},{word:'ISOTOPE',dir:'D',row:0,col:5},{word:'DIVIDEND',dir:'A',row:4,col:0},{word:'DYNASTY',dir:'D',row:0,col:2},{word:'PHONEME',dir:'A',row:6,col:0},{word:'MORPHEME',dir:'D',row:0,col:4},{word:'PARADOX',dir:'A',row:8,col:0},{word:'SUBSIDY',dir:'D',row:0,col:1}],
+    [{word:'MITOSIS',dir:'A',row:0,col:0},{word:'MEIOSIS',dir:'D',row:0,col:0},{word:'OSMOSIS',dir:'A',row:2,col:0},{word:'POLYMER',dir:'D',row:0,col:5},{word:'NUCLEUS',dir:'A',row:4,col:0},{word:'PROTEIN',dir:'D',row:0,col:2},{word:'HORMONE',dir:'A',row:6,col:0},{word:'NEUTRON',dir:'D',row:0,col:4},{word:'ELEMENT',dir:'A',row:8,col:0},{word:'GLUCOSE',dir:'D',row:0,col:1}],
+    [{word:'ALLEGORY',dir:'A',row:0,col:0},{word:'ALLUSION',dir:'D',row:0,col:0},{word:'METAPHOR',dir:'A',row:2,col:0},{word:'MORPHEME',dir:'D',row:0,col:6},{word:'CATALYST',dir:'A',row:4,col:0},{word:'THEOREM',dir:'D',row:0,col:2},{word:'MOLECULE',dir:'A',row:6,col:0},{word:'INTEGRAL',dir:'D',row:0,col:4},{word:'EROSION',dir:'A',row:8,col:0},{word:'GLACIER',dir:'D',row:0,col:1}],
+    [{word:'INFLATION',dir:'A',row:0,col:0},{word:'ISOTOPE',dir:'D',row:0,col:0},{word:'RECESSION',dir:'A',row:2,col:0},{word:'SPECTRUM',dir:'D',row:0,col:5},{word:'ELECTRON',dir:'A',row:4,col:0},{word:'GRAVITY',dir:'D',row:0,col:2},{word:'NUCLEUS',dir:'A',row:6,col:0},{word:'CIRCUIT',dir:'D',row:0,col:4},{word:'POLYMER',dir:'A',row:8,col:0},{word:'VOLCANO',dir:'D',row:0,col:1}],
+    [{word:'MONOPOLY',dir:'A',row:0,col:0},{word:'MOLECULE',dir:'D',row:0,col:0},{word:'DIVIDEND',dir:'A',row:2,col:0},{word:'DYNAMO',dir:'D',row:0,col:6},{word:'PARADOX',dir:'A',row:4,col:0},{word:'PATRON',dir:'D',row:0,col:1},{word:'GRADIENT',dir:'A',row:6,col:0},{word:'SURPLUS',dir:'D',row:0,col:5},{word:'THEOREM',dir:'A',row:8,col:0},{word:'TUNDRA',dir:'D',row:0,col:3}],
+    [{word:'TECTONIC',dir:'A',row:0,col:0},{word:'TARIFF',dir:'D',row:0,col:0},{word:'CATALYST',dir:'A',row:2,col:0},{word:'COLONY',dir:'D',row:0,col:5},{word:'PHONEME',dir:'A',row:4,col:0},{word:'PATRON',dir:'D',row:0,col:2},{word:'MORPHEME',dir:'A',row:6,col:0},{word:'ETHICS',dir:'D',row:0,col:4},{word:'ALLEGORY',dir:'A',row:8,col:0},{word:'ALLOY',dir:'D',row:0,col:1}],
+    [{word:'MITOSIS',dir:'A',row:0,col:0},{word:'MONSOON',dir:'D',row:0,col:0},{word:'MEIOSIS',dir:'A',row:2,col:0},{word:'EMPEROR',dir:'D',row:0,col:4},{word:'OSMOSIS',dir:'A',row:4,col:0},{word:'SCHISM',dir:'D',row:0,col:2},{word:'VOLCANO',dir:'A',row:6,col:0},{word:'CIRCUIT',dir:'D',row:0,col:5},{word:'GLACIER',dir:'A',row:8,col:0},{word:'GRAVITY',dir:'D',row:0,col:1}],
+    [{word:'ELECTRON',dir:'A',row:0,col:0},{word:'ELEMENT',dir:'D',row:0,col:0},{word:'ISOTOPE',dir:'A',row:2,col:0},{word:'SATIRE',dir:'D',row:0,col:5},{word:'THEOREM',dir:'A',row:4,col:0},{word:'TERRAIN',dir:'D',row:0,col:2},{word:'CATALYST',dir:'A',row:6,col:0},{word:'CENSUS',dir:'D',row:0,col:4},{word:'MONOPOLY',dir:'A',row:8,col:0},{word:'MAGNET',dir:'D',row:0,col:1}],
+    [{word:'INTEGRAL',dir:'A',row:0,col:0},{word:'ISOTOPE',dir:'D',row:0,col:0},{word:'MOLECULE',dir:'A',row:2,col:0},{word:'LATENCY',dir:'D',row:0,col:5},{word:'GRADIENT',dir:'A',row:4,col:0},{word:'GLACIER',dir:'D',row:0,col:2},{word:'ALLEGORY',dir:'A',row:6,col:0},{word:'DYNASTY',dir:'D',row:0,col:4},{word:'DIVIDEND',dir:'A',row:8,col:0},{word:'DEFICIT',dir:'D',row:0,col:1}],
+  ];
+
+  for (let i = 0; i < 100; i++) {
+    const src = expert[i % expert.length];
+    pool.push({ layout: src.map(e => ({...e})) });
+  }
+
+  return pool;
+}
+
+/* ═══════════════════════════════════════
+   GAME STATE
+═══════════════════════════════════════ */
+let CW = {
+  idx: 0,
+  puzzle: null,
+  grid: null,
+  size: 0,
+  entries: [],   // {word, dir, row, col, cells:[], clueNum}
+  userGrid: [],  // array of letters
+  revealedCells: new Set(),
+  selectedEntry: null,
+  selectedCell: null,
+  timer: 0, timerInt: null,
+  frozen: false,
+  dirty: false,
+};
+
+/* ═══════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════ */
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  if (page === 'select') {
+    renderLevelSelect();
+    if (CW.timerInt) clearInterval(CW.timerInt);
+  }
+}
+
+/* ═══════════════════════════════════════
+   LEVEL SELECT
+═══════════════════════════════════════ */
+function getHighestUnlocked() {
+  const p = (STORE.progress.crossword || {});
+  let h = -1;
+  for (let i = 0; i < ALL_PUZZLES.length; i++) {
+    if (p[i] && p[i].stars > 0) h = i; else break;
+  }
+  return h + 1;
+}
+
+function renderLevelSelect() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  const highest = getHighestUnlocked();
+  const p = STORE.progress.crossword || {};
+  let doneCount = 0;
+  const maxDisplay = Math.min(ALL_PUZZLES.length, highest + 21);
+
+  for (let i = 0; i < maxDisplay; i++) {
+    const pz = ALL_PUZZLES[i];
+    const data = p[i];
+    if (data && data.stars > 0) doneCount++;
+    const isUnlocked = i <= highest;
+    const isDone = data && data.stars > 0;
+
+    const card = document.createElement('div');
+    card.className = `lvl-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+    if (i === highest) card.classList.add('current');
+    if (isDone) { card.style.borderColor = 'var(--accent)'; card.style.background = 'var(--accent-lt)'; }
+
+    const diffLabel = pz.difficulty;
+    let sub = isDone ? `<span class="stars">${'⭐'.repeat(data.stars)}</span>` : (isUnlocked ? '<span style="color:var(--ink2);font-size:.75rem">Not started</span>' : '🔒');
+    const timeStr = isDone ? `<div class="time">${formatTime(data.time)}</div>` : '';
+
+    card.innerHTML = `<div class="diff-badge diff-${diffLabel}">${diffLabel}</div><h4>${i+1}</h4><div>${sub}</div>${timeStr}`;
+    if (isUnlocked) card.onclick = () => startGame(i);
+    grid.appendChild(card);
+  }
+
+  document.getElementById('lvlProgress').innerText = `${doneCount}/${ALL_PUZZLES.length}`;
+}
+
+/* ═══════════════════════════════════════
+   GAME START
+═══════════════════════════════════════ */
+function startGame(idx) {
+  const todayStr = getTodayDate();
+  const tmins = Math.floor((STORE.sessions[todayStr]||0)/60);
+  const limit = STORE.settings.dailyLimit || 60;
+  if (tmins >= limit && limit > 0) {
+    document.getElementById('limitDisplay').innerText = limit;
+    document.getElementById('timeLimitOverlay').classList.add('active');
+    return;
+  }
+
+  CW.idx = idx;
+  CW.puzzle = ALL_PUZZLES[idx];
+  CW.frozen = false;
+  CW.timer = 0;
+  CW.selectedEntry = null;
+  CW.selectedCell = null;
+  CW.revealedCells = new Set();
+
+  buildPuzzleGrid();
+  renderGrid();
+  renderClues();
+  startTimer();
+  document.getElementById('gameLevelNum').innerText = idx + 1;
+  navigate('game');
+}
+
+/* ═══════════════════════════════════════
+   GRID BUILDING (from layout spec)
+═══════════════════════════════════════ */
+function buildPuzzleGrid() {
+  const layout = CW.puzzle.layout;
+
+  // Normalise: shift rows/cols to ensure all >= 0, compute size
+  let minR=Infinity, minC=Infinity, maxR=0, maxC=0;
+  layout.forEach(e => {
+    const word = e.word;
+    const len = word.length;
+    minR = Math.min(minR, e.row);
+    minC = Math.min(minC, e.col);
+    if (e.dir==='A') { maxR = Math.max(maxR, e.row); maxC = Math.max(maxC, e.col+len-1); }
+    else             { maxR = Math.max(maxR, e.row+len-1); maxC = Math.max(maxC, e.col); }
+  });
+  const offsetR = minR < 0 ? -minR : 0;
+  const offsetC = minC < 0 ? -minC : 0;
+
+  const normLayout = layout.map(e => ({...e, row: e.row+offsetR, col: e.col+offsetC }));
+
+  let fmaxR=0, fmaxC=0;
+  normLayout.forEach(e => {
+    const len = e.word.length;
+    if (e.dir==='A') { fmaxR=Math.max(fmaxR,e.row); fmaxC=Math.max(fmaxC,e.col+len-1); }
+    else             { fmaxR=Math.max(fmaxR,e.row+len-1); fmaxC=Math.max(fmaxC,e.col); }
+  });
+
+  const rows = fmaxR + 1, cols = fmaxC + 1;
+  CW.size = Math.max(rows, cols);
+
+  // Build the answer grid
+  const size = CW.size;
+  const answerGrid = Array.from({length: size}, () => Array(size).fill(null));
+  const blackGrid  = Array.from({length: size}, () => Array(size).fill(true));
+
+  normLayout.forEach(e => {
+    const word = e.word;
+    for (let i = 0; i < word.length; i++) {
+      const r = e.dir==='A' ? e.row : e.row+i;
+      const c = e.dir==='A' ? e.col+i : e.col;
+      if (r < size && c < size) {
+        answerGrid[r][c] = word[i];
+        blackGrid[r][c] = false;
+      }
+    }
+  });
+
+  CW.answerGrid = answerGrid;
+  CW.blackGrid = blackGrid;
+  CW.userGrid = Array.from({length: size}, () => Array(size).fill(''));
+
+  // Number cells
+  const cellNumbers = Array.from({length: size}, () => Array(size).fill(0));
+  let num = 1;
+  CW.entries = [];
+
+  // Assign clue numbers
+  normLayout.forEach(e => {
+    const r=e.row, c=e.col;
+    if (!cellNumbers[r][c]) { cellNumbers[r][c]=num++; }
+  });
+
+  // Create entry objects
+  let acrossNum=0;
+  normLayout.forEach(e => {
+    const r=e.row, c=e.col;
+    const word = e.word;
+    const cells = [];
+    for (let i = 0; i < word.length; i++) {
+      const er = e.dir==='A' ? r : r+i;
+      const ec = e.dir==='A' ? c+i : c;
+      cells.push({r:er, c:ec});
+    }
+    const clueNum = cellNumbers[r][c];
+    const wb = WORD_BANK[word] || {pos:'n.', def:'A word used in academic contexts.'};
+    CW.entries.push({
+      word, dir: e.dir, row:r, col:c, cells, clueNum,
+      clue: wb.def,
+      done: false,
+    });
+  });
+
+  CW.cellNumbers = cellNumbers;
+}
+
+/* ═══════════════════════════════════════
+   RENDER GRID
+═══════════════════════════════════════ */
+function renderGrid() {
+  const container = document.getElementById('cwGrid');
+  const size = CW.size;
+  container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  container.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+  container.innerHTML = '';
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cw-cell';
+      cell.id = `cc-${r}-${c}`;
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      if (CW.blackGrid[r][c]) {
+        cell.classList.add('black');
+      } else {
+        const num = CW.cellNumbers[r][c];
+        if (num) {
+          const n = document.createElement('span');
+          n.className = 'cell-num';
+          n.textContent = num;
+          cell.appendChild(n);
+        }
+        const letterEl = document.createElement('span');
+        letterEl.className = 'cell-letter';
+        letterEl.id = `cl-${r}-${c}`;
+        cell.appendChild(letterEl);
+
+        cell.addEventListener('click', () => handleCellClick(r, c));
+      }
+      container.appendChild(cell);
+    }
+  }
+
+  // Hidden keyboard input for mobile
+  const inp = document.getElementById('hiddenInput');
+  inp.value = '';
+  inp.addEventListener('input', handleInput);
+  inp.addEventListener('keydown', handleKeyDown);
+
+  document.addEventListener('keydown', handleKeyDown);
+  updateGridDisplay();
+}
+
+function updateGridDisplay() {
+  const size = CW.size;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (CW.blackGrid[r][c]) continue;
+      const cell = document.getElementById(`cc-${r}-${c}`);
+      const letterEl = document.getElementById(`cl-${r}-${c}`);
+      if (!cell || !letterEl) continue;
+
+      cell.classList.remove('active','word-highlight','correct','wrong');
+      letterEl.textContent = CW.userGrid[r][c] || '';
+      letterEl.classList.toggle('revealed', CW.revealedCells.has(`${r},${c}`));
+    }
+  }
+
+  // Highlight selected entry + active cell
+  if (CW.selectedEntry) {
+    CW.selectedEntry.cells.forEach(({r,c}) => {
+      const el = document.getElementById(`cc-${r}-${c}`);
+      if (el) el.classList.add('word-highlight');
+    });
+  }
+  if (CW.selectedCell) {
+    const {r,c} = CW.selectedCell;
+    const el = document.getElementById(`cc-${r}-${c}`);
+    if (el) { el.classList.remove('word-highlight'); el.classList.add('active'); }
+  }
+
+  updateActiveClueBar();
+}
+
+function updateActiveClueBar() {
+  const bar = document.getElementById('activeClueBar');
+  if (CW.selectedEntry) {
+    const e = CW.selectedEntry;
+    bar.textContent = `${e.clueNum}${e.dir === 'A' ? ' Across' : ' Down'}: ${e.clue}`;
+    bar.style.display = 'block';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════
+   RENDER CLUES
+═══════════════════════════════════════ */
+function renderClues() {
+  const across = document.getElementById('cluesAcross');
+  const down   = document.getElementById('cluesDown');
+  across.innerHTML = '';
+  down.innerHTML   = '';
+
+  const sorted = [...CW.entries].sort((a,b) => a.clueNum - b.clueNum || (a.dir==='A'?0:1) - (b.dir==='A'?0:1));
+  sorted.forEach(e => {
+    const item = document.createElement('div');
+    item.className = 'clue-item';
+    item.id = `clue-${e.dir}-${e.clueNum}`;
+    item.innerHTML = `<span class="clue-num">${e.clueNum}</span><span>${e.clue}</span>`;
+    item.addEventListener('click', () => selectEntry(e, e.cells[0]));
+    if (e.dir === 'A') across.appendChild(item);
+    else               down.appendChild(item);
+  });
+}
+
+function highlightClue(entry) {
+  document.querySelectorAll('.clue-item').forEach(el => el.classList.remove('active'));
+  if (!entry) return;
+  const el = document.getElementById(`clue-${entry.dir}-${entry.clueNum}`);
+  if (el) { el.classList.add('active'); el.scrollIntoView({block:'nearest'}); }
+}
+
+/* ═══════════════════════════════════════
+   CELL INTERACTION
+═══════════════════════════════════════ */
+function handleCellClick(r, c) {
+  if (CW.frozen || CW.blackGrid[r][c]) return;
+
+  // Find entries containing this cell
+  const containing = CW.entries.filter(e => e.cells.some(cl => cl.r===r && cl.c===c));
+  if (!containing.length) return;
+
+  // If same cell clicked again, toggle direction
+  if (CW.selectedCell && CW.selectedCell.r===r && CW.selectedCell.c===c && CW.selectedEntry) {
+    const currentDir = CW.selectedEntry.dir;
+    const other = containing.find(e => e.dir !== currentDir);
+    if (other) { selectEntry(other, {r,c}); return; }
+  }
+
+  // Prefer current direction if possible, else first entry
+  let entry = CW.selectedEntry ? (containing.find(e => e.dir===CW.selectedEntry.dir) || containing[0]) : containing[0];
+  selectEntry(entry, {r,c});
+
+  // Open keyboard on mobile
+  document.getElementById('hiddenInput').focus();
+}
+
+function selectEntry(entry, cell) {
+  CW.selectedEntry = entry;
+  CW.selectedCell = cell || (entry ? entry.cells[0] : null);
+  updateGridDisplay();
+  highlightClue(entry);
+}
+
+function handleInput(e) {
+  const inp = document.getElementById('hiddenInput');
+  const val = inp.value.toUpperCase().replace(/[^A-Z]/g,'');
+  inp.value = '';
+  if (!val || !CW.selectedCell || !CW.selectedEntry || CW.frozen) return;
+  typeLetterAt(CW.selectedCell.r, CW.selectedCell.c, val[0]);
+}
+
+function handleKeyDown(e) {
+  if (CW.frozen || !CW.selectedCell) return;
+  const {r, c} = CW.selectedCell;
+  const entry = CW.selectedEntry;
+
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    e.preventDefault();
+    // Clear current cell, move back
+    if (CW.userGrid[r][c]) {
+      CW.userGrid[r][c] = '';
+      CW.revealedCells.delete(`${r},${c}`);
+      updateGridDisplay();
+    } else if (entry) {
+      // Move backwards in word
+      const idx = entry.cells.findIndex(cl => cl.r===r && cl.c===c);
+      if (idx > 0) {
+        const prev = entry.cells[idx-1];
+        CW.selectedCell = prev;
+        CW.userGrid[prev.r][prev.c] = '';
+        CW.revealedCells.delete(`${prev.r},${prev.c}`);
+        updateGridDisplay();
+      }
+    }
+    return;
+  }
+
+  if (e.key === 'ArrowRight') { e.preventDefault(); moveSelection(0,1); return; }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); moveSelection(0,-1); return; }
+  if (e.key === 'ArrowDown')  { e.preventDefault(); moveSelection(1,0); return; }
+  if (e.key === 'ArrowUp')    { e.preventDefault(); moveSelection(-1,0); return; }
+  if (e.key === 'Tab') { e.preventDefault(); selectNextEntry(); return; }
+
+  const letter = e.key.toUpperCase();
+  if (letter.length === 1 && /[A-Z]/.test(letter)) {
+    e.preventDefault();
+    typeLetterAt(r, c, letter);
+  }
+}
+
+function typeLetterAt(r, c, letter) {
+  CW.userGrid[r][c] = letter;
+  CW.dirty = true;
+  // Advance to next empty cell in word
+  if (CW.selectedEntry) {
+    const cells = CW.selectedEntry.cells;
+    const idx = cells.findIndex(cl => cl.r===r && cl.c===c);
+    for (let i = idx+1; i < cells.length; i++) {
+      if (!CW.userGrid[cells[i].r][cells[i].c]) {
+        CW.selectedCell = cells[i]; break;
+      }
+    }
+  }
+  updateGridDisplay();
+  checkAutoComplete();
+}
+
+function moveSelection(dr, dc) {
+  if (!CW.selectedCell) return;
+  let {r, c} = CW.selectedCell;
+  r += dr; c += dc;
+  if (r < 0 || c < 0 || r >= CW.size || c >= CW.size || CW.blackGrid[r][c]) return;
+  const containing = CW.entries.filter(e => e.cells.some(cl => cl.r===r && cl.c===c));
+  if (!containing.length) return;
+  const entry = CW.selectedEntry ? (containing.find(e=>e.dir===CW.selectedEntry.dir)||containing[0]) : containing[0];
+  selectEntry(entry, {r,c});
+}
+
+function selectNextEntry() {
+  const sorted = [...CW.entries].sort((a,b) => a.clueNum-b.clueNum || (a.dir==='A'?0:1)-(b.dir==='A'?0:1));
+  if (!CW.selectedEntry) { selectEntry(sorted[0], sorted[0].cells[0]); return; }
+  const idx = sorted.findIndex(e => e===CW.selectedEntry);
+  const next = sorted[(idx+1)%sorted.length];
+  selectEntry(next, next.cells[0]);
+}
+
+/* ═══════════════════════════════════════
+   CHECK & REVEAL
+═══════════════════════════════════════ */
+function checkAll() {
+  if (CW.frozen) return;
+  CW.entries.forEach(entry => {
+    const allCorrect = entry.cells.every(({r,c}) => CW.userGrid[r][c] === CW.answerGrid[r][c]);
+    if (allCorrect && entry.cells.every(({r,c}) => CW.userGrid[r][c])) {
+      entry.cells.forEach(({r,c}) => {
+        document.getElementById(`cc-${r}-${c}`)?.classList.add('correct');
+      });
+    } else {
+      entry.cells.forEach(({r,c}) => {
+        if (CW.userGrid[r][c] && CW.userGrid[r][c] !== CW.answerGrid[r][c]) {
+          const el = document.getElementById(`cc-${r}-${c}`);
+          el?.classList.add('wrong');
+          setTimeout(() => el?.classList.remove('wrong'), 600);
+        }
+      });
+    }
+  });
+  checkAutoComplete();
+}
+
+function revealCurrent() {
+  if (!CW.selectedEntry || CW.frozen) return;
+  CW.selectedEntry.cells.forEach(({r,c}) => {
+    CW.userGrid[r][c] = CW.answerGrid[r][c];
+    CW.revealedCells.add(`${r},${c}`);
+  });
+  updateGridDisplay();
+  checkAutoComplete();
+}
+
+function resetLevel() {
+  if (CW.frozen) return;
+  CW.userGrid = Array.from({length:CW.size}, () => Array(CW.size).fill(''));
+  CW.revealedCells = new Set();
+  CW.entries.forEach(e => e.done = false);
+  updateGridDisplay();
+}
+
+/* ═══════════════════════════════════════
+   WIN CHECK
+═══════════════════════════════════════ */
+function checkAutoComplete() {
+  const allFilled = CW.entries.every(entry =>
+    entry.cells.every(({r,c}) => CW.userGrid[r][c] === CW.answerGrid[r][c])
+  );
+  if (!allFilled) return;
+
+  clearInterval(CW.timerInt);
+  CW.frozen = true;
+
+  const hasReveals = CW.revealedCells.size > 0;
+  const stars = hasReveals ? 1 : CW.timer <= 120 ? 3 : CW.timer <= 240 ? 2 : 1;
+
+  if (!STORE.progress.crossword) STORE.progress.crossword = {};
+  const existing = STORE.progress.crossword[CW.idx];
+  if (!existing || stars > existing.stars || (stars === existing.stars && CW.timer < existing.time)) {
+    STORE.progress.crossword[CW.idx] = { stars, time: CW.timer };
+    saveLocalStore();
+    syncUp();
+  }
+
+  setTimeout(() => showWinModal(stars), 500);
+}
+
+function showWinModal(stars) {
+  document.getElementById('winStars').textContent = '⭐'.repeat(stars);
+  document.getElementById('winTime').textContent = formatTime(CW.timer);
+
+  // Build definitions list
+  const list = document.getElementById('defList');
+  list.innerHTML = '';
+  const sorted = [...CW.entries].sort((a,b) => a.clueNum-b.clueNum);
+  const seen = new Set();
+  sorted.forEach(e => {
+    if (seen.has(e.word)) return;
+    seen.add(e.word);
+    const wb = WORD_BANK[e.word] || {pos:'n.', def:'—'};
+    const li = document.createElement('li');
+    li.className = 'def-item';
+    li.innerHTML = `<span class="def-word">${e.word}</span><span class="def-pos">${wb.pos}</span><div class="def-meaning">${wb.def}</div>`;
+    list.appendChild(li);
+  });
+
+  document.getElementById('winOverlay').classList.add('active');
+}
+
+function nextLevel() {
+  document.getElementById('winOverlay').classList.remove('active');
+  const next = CW.idx + 1;
+  if (next < ALL_PUZZLES.length) startGame(next);
+  else navigate('select');
+}
+
+/* ═══════════════════════════════════════
+   TIMER
+═══════════════════════════════════════ */
+function formatTime(secs) {
+  const m = Math.floor(secs/60), s = secs%60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function startTimer() {
+  if (CW.timerInt) clearInterval(CW.timerInt);
+  CW.timer = 0;
+  const el = document.getElementById('gameTimer');
+  CW.timerInt = setInterval(() => {
+    if (CW.frozen) return;
+    CW.timer++;
+    el.textContent = formatTime(CW.timer);
+  }, 1000);
+}
+
+/* ═══════════════════════════════════════
+   INIT
+═══════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  initCommon();
+  renderLevelSelect();
+  navigate('select');
+});
+</script>
+</body>
+</html>
