@@ -1033,6 +1033,9 @@ function resolveAction() {
   } else {
     G.phase='done';
     updateUI();
+    if (!hasBuildable(G.cur)) {
+      setTimeout(()=>endTurn(), 800);
+    }
   }
 }
 
@@ -1277,7 +1280,7 @@ function updateUI() {
   const endBtn=document.getElementById('endBtn');
   const isHuman=!pl.bot&&!G.over;
   const canRoll=isHuman&&G.phase==='roll'&&!G.rolled;
-  const canEnd=isHuman&&G.phase==='done';
+  const canEnd=isHuman&&G.phase==='done'&&hasBuildable(G.cur);
   const canBuild=isHuman&&G.phase==='done'&&hasBuildable(G.cur);
 
   rollBtn.style.display=canRoll?'':'none';
