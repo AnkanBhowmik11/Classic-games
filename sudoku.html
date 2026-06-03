@@ -454,6 +454,12 @@ function renderLevelSelect() {
   }
   
   document.getElementById('lvlProgress').innerText = `${doneCount} Levels`;
+
+  // Auto-scroll to the current level
+  setTimeout(() => {
+    const cur = grid.querySelector('.lvl-card.current');
+    if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
 }
 
 function startGame(lvl) {

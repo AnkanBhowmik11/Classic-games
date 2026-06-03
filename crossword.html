@@ -775,7 +775,7 @@ function renderLevelSelect() {
   const highest = getHighestUnlocked();
   const p = STORE.progress.crossword || {};
   let doneCount = 0;
-  const maxDisplay = Math.min(ALL_PUZZLES.length, Math.max(highest + 21, 30));
+  const maxDisplay = Math.min(ALL_PUZZLES.length, highest + 11);
 
   for (let i = 0; i < maxDisplay; i++) {
     const pz = ALL_PUZZLES[i];
@@ -801,6 +801,12 @@ function renderLevelSelect() {
   }
 
   document.getElementById('lvlProgress').innerText = `${doneCount}/${ALL_PUZZLES.length}`;
+
+  // Auto-scroll to the current (next-to-play) level
+  setTimeout(() => {
+    const cur = grid.querySelector('.lvl-card.current');
+    if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
 }
 
 /* ═══════════════════════════════════════
