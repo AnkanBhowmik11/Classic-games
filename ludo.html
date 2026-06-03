@@ -175,6 +175,19 @@ canvas{display:block;touch-action:none;border-radius:8px;}
   .pdice{width:34px;height:34px;padding:4.5px;gap:2.5px;}
   .panel{min-height:44px;padding:.2rem .32rem;}
 }
+
+/* Color picker */
+.color-pick-row{display:flex;flex-direction:column;gap:.45rem;width:100%;}
+.color-pick-row label{font-weight:700;font-size:.84rem;}
+.color-swatches{display:flex;gap:.5rem;flex-wrap:wrap;}
+.cswatch{
+  width:36px;height:36px;border-radius:50%;border:3px solid transparent;
+  cursor:pointer;transition:transform .15s,border-color .15s;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);
+}
+.cswatch:hover{transform:scale(1.12);}
+.cswatch.chosen{border-color:var(--ink)!important;transform:scale(1.18);
+  box-shadow:0 0 0 3px var(--ink),0 2px 8px rgba(0,0,0,.22);}
 </style>
 </head>
 <body>
@@ -199,8 +212,13 @@ canvas{display:block;touch-action:none;border-radius:8px;}
       <div class="mc s" id="m4" onclick="pick('4p',this)"><div class="mi">👥👥</div><div class="ml">4 Players</div><div class="md">All four colors</div></div>
       <div class="mc"   id="m3" onclick="pick('3p',this)"><div class="mi">👥👤</div><div class="ml">3 Players</div><div class="md">Red·Blue·Green</div></div>
       <div class="mc"   id="m2" onclick="pick('2p',this)"><div class="mi">👤👤</div><div class="ml">2 Players</div><div class="md">Red vs Blue</div></div>
-      <div class="mc"   id="mb" onclick="pick('bot',this)"><div class="mi">🤖</div><div class="ml">vs Bot</div><div class="md">You(Red) vs AI</div></div>
+      <div class="mc"   id="mb" onclick="pick('bot',this)"><div class="mi">🤖</div><div class="ml">vs Bot</div><div class="md">You vs AI</div></div>
     </div>
+  </div>
+  <!-- Color picker -->
+  <div class="color-pick-row">
+    <label>Your Piece Color</label>
+    <div class="color-swatches" id="ludoSwatches"></div>
   </div>
   <button class="gb" onclick="startGame()">Start Game 🎲</button>
 </div>
@@ -344,18 +362,69 @@ let MODE='4p', PLAYERS=[], PIECES={};
 let CUR=0, DICE=0, ROLLED=false, OVER=false, ANIMATING=false;
 let FINISH=[], C6=0, MOVABLE=[];
 let cv, ctx, CS=36, PH=0, RAF=null;
+let DPR = 1; // device pixel ratio
 
-function pick(m,el){MODE=m;document.querySelectorAll('.mc').forEach(e=>e.classList.remove('s'));el.classList.add('s');}
+/* ── Available colors for picker ──────────── */
+const LUDO_COLORS_ALL = ['green','yellow','red','blue'];
+// Which color slot the human player will occupy (default: 'red')
+let MY_COLOR = 'red';
+
+function buildLudoSwatches() {
+  const wrap = document.getElementById('ludoSwatches');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  LUDO_COLORS_ALL.forEach(col => {
+    const s = document.createElement('div');
+    s.className = 'cswatch' + (col === MY_COLOR ? ' chosen' : '');
+    s.style.background = C[col].f;
+    s.dataset.col = col;
+    s.title = C[col].n;
+    s.onclick = () => {
+      MY_COLOR = col;
+      wrap.querySelectorAll('.cswatch').forEach(x => x.classList.toggle('chosen', x.dataset.col === col));
+    };
+    wrap.appendChild(s);
+  });
+}
+
+function pick(m,el){
+  MODE=m;
+  document.querySelectorAll('.mc').forEach(e=>e.classList.remove('s'));
+  el.classList.add('s');
+}
 
 /* ── Start ───────────────────────────────── */
 function startGame(){
-  const cfgs={
+  // Build player list, swapping human player to chosen color
+  let cfgs={
     '4p':[['green','Green',0],['yellow','Yellow',0],['red','Red',0],['blue','Blue',0]],
     '3p':[['green','Green',0],['red','Red',0],['blue','Blue',0]],
     '2p':[['red','Red',0],['blue','Blue',0]],
     'bot':[['red','You',0],['green','Bot G',1],['yellow','Bot Y',1],['blue','Bot B',1]],
   };
-  PLAYERS=cfgs[MODE].map(([c,n,b])=>({color:c,name:n,bot:!!b}));
+  let list = cfgs[MODE].map(([c,n,b])=>({color:c,name:n,bot:!!b}));
+
+  // Apply chosen color: find the human slot (first non-bot entry)
+  const humanIdx = list.findIndex(p => !p.bot);
+  if (humanIdx !== -1) {
+    const wantedColor = MY_COLOR;
+    // Find if that color is already in the list
+    const existingIdx = list.findIndex(p => p.color === wantedColor);
+    if (existingIdx !== -1 && existingIdx !== humanIdx) {
+      // Swap colors
+      const tmpColor = list[humanIdx].color;
+      const tmpName  = list[humanIdx].name;
+      list[humanIdx].color = wantedColor;
+      list[existingIdx].color = tmpColor;
+      // Fix up name for bot (use color name)
+      if (list[existingIdx].bot) list[existingIdx].name = C[tmpColor].n;
+      if (!list[humanIdx].bot)   list[humanIdx].name = 'You';
+    } else if (existingIdx === -1) {
+      // Chosen color not in game (e.g. 2p/3p and they picked yellow) — ignore
+    }
+  }
+
+  PLAYERS = list;
   PIECES={};
   for(const p of PLAYERS) PIECES[p.color]=[0,1,2,3].map(i=>({i,ph:'yard',pos:-1}));
   CUR=0;DICE=0;ROLLED=false;OVER=false;ANIMATING=false;FINISH=[];C6=0;MOVABLE=[];
@@ -379,17 +448,29 @@ function startGame(){
 }
 
 function resize(){
+  DPR = window.devicePixelRatio || 1;
   const maxW = Math.min(window.innerWidth - 24, window.innerHeight - 210, 556);
   CS = maxW / 15;
-  cv.width = cv.height = maxW;
-  cv.style.width = cv.style.height = maxW + 'px';
+  // HiDPI fix: internal canvas pixels = logical size × DPR
+  cv.width  = Math.round(maxW * DPR);
+  cv.height = Math.round(maxW * DPR);
+  cv.style.width  = maxW + 'px';
+  cv.style.height = maxW + 'px';
+  // Scale all draw calls so we still use logical (CS-based) coordinates
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const fullW = maxW + 12;
   document.querySelector('.bwrap').style.width = fullW + 'px';
   document.querySelectorAll('.panels-top,.panels-bot').forEach(e=>e.style.width = fullW + 'px');
   const sb=document.querySelector('.sbar');
   if(sb)sb.style.width = fullW + 'px';
 }
-window.addEventListener('resize',()=>{if(document.getElementById('game').classList.contains('on'))resize();});
+window.addEventListener('resize',()=>{
+  if(document.getElementById('game').classList.contains('on')){
+    resize();
+    // Re-apply transform after resize
+    if(ctx) ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+});
 
 function updateAnim(){
   const completes = [];
@@ -651,8 +732,11 @@ const cv_click = function(e){
   const pl=PLAYERS[CUR];
   if(pl.bot)return;
   const rect=cv.getBoundingClientRect();
-  const sx=cv.width/rect.width,sy=cv.height/rect.height;
-  const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
+  // Convert mouse → logical canvas coords (account for HiDPI transform)
+  const scaleX = rect.width  > 0 ? 1 / (rect.width  / (cv.width  / DPR)) : 1;
+  const scaleY = rect.height > 0 ? 1 / (rect.height / (cv.height / DPR)) : 1;
+  const mx=(e.clientX-rect.left)*scaleX;
+  const my=(e.clientY-rect.top)*scaleY;
   
   const stk={};
   const allXY = [];
@@ -1141,6 +1225,7 @@ function goSetup(){
 document.addEventListener('DOMContentLoaded',()=>{
   initCommon();
   document.getElementById('cv').addEventListener('click',e=>{if(typeof cv_click==='function')cv_click(e);});
+  buildLudoSwatches();
 });
 </script>
 </body>

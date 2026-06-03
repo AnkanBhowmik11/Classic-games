@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<style>
+.container {
+  display: flex;
+  align-items: stretch;
+  background: #eee;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  background: #f99;
+  width: 20px;
+}
+.board {
+  width: 200px;
+  aspect-ratio: 1;
+  background: #99f;
+}
+</style>
+<body>
+<div class="container">
+  <div class="side">
+    <div>1</div><div>2</div><div>3</div>
+  </div>
+  <div class="board"></div>
+</div>
+<script>
+  setTimeout(() => {
+    console.log(document.querySelector('.side').clientHeight);
+    console.log(document.querySelector('.board').clientHeight);
+  }, 100);
+</script>
+</body>
+</html>

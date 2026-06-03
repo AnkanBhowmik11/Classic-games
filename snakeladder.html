@@ -53,15 +53,15 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
   border-radius:8px;padding:.5rem .8rem;line-height:1.4;width:100%;text-align:center;}
 
 /* Game */
-#game{display:none;flex-direction:column;align-items:center;gap:.28rem;padding:.28rem 0 .6rem;min-height:calc(100vh - 48px);}
+#game{display:none;flex-direction:column;align-items:center;gap:.22rem;padding:.28rem 0 .6rem;min-height:calc(100vh - 48px);}
 #game.on{display:flex;}
 
-/* Player panels */
+/* Player panels (name/status only, no dice) */
 .panels{display:flex;gap:.2rem;width:100%;padding:0 3px;flex-wrap:wrap;}
 .panel{flex:1;min-width:0;border-radius:10px;border:2px solid transparent;
-  background:var(--sur);box-shadow:var(--sh);padding:.24rem .38rem;
+  background:var(--sur);box-shadow:var(--sh);padding:.22rem .35rem;
   transition:all .22s;display:flex;align-items:center;gap:.3rem;
-  min-height:48px;overflow:hidden;position:relative;}
+  min-height:36px;overflow:hidden;position:relative;}
 .panel.active{transform:translateY(-2px);}
 .panel.active.p0{border-color:#2d6a4f;box-shadow:0 4px 14px rgba(45,106,79,.25);}
 .panel.active.p1{border-color:#8b5cf6;box-shadow:0 4px 14px rgba(139,92,246,.3);}
@@ -73,10 +73,20 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .ppos{font-size:.55rem;color:var(--ink2);font-family:'JetBrains Mono',monospace;margin-top:1px;}
 .ppos.waiting{color:#f59e0b;font-weight:700;}
 
+/* Dice zones — top and bottom */
+.dice-zone{display:flex;align-items:center;justify-content:center;
+  gap:.55rem;width:100%;padding:0 3px;}
+
+/* Dice card — wraps die + player label */
+.dice-card{display:flex;flex-direction:column;align-items:center;gap:3px;
+  flex:1;max-width:90px;}
+.dice-card-label{font-size:.6rem;font-weight:700;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px;text-align:center;}
+
 /* Die */
-.pdice{width:36px;height:36px;border-radius:8px;
+.pdice{width:44px;height:44px;border-radius:10px;
   display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
-  gap:2.5px;padding:4.5px;flex-shrink:0;cursor:pointer;position:relative;
+  gap:3px;padding:5.5px;cursor:pointer;position:relative;
   background:var(--ink);
   box-shadow:0 3px 8px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.25);
   transition:transform .12s,box-shadow .12s;user-select:none;}
@@ -98,6 +108,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
   font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.84rem;
   color:#fff;pointer-events:none;border-radius:8px;opacity:0;transition:opacity .2s;}
 .dval.show{opacity:1;}
+
+/* Inactive dice (not your turn) — muted */
+.dice-card.inactive .pdice{opacity:.38;cursor:default;pointer-events:none;}
+.dice-card.inactive .dice-card-label{opacity:.5;}
 
 /* Board wrapper */
 .bwrap{border-radius:14px;overflow:hidden;
@@ -167,9 +181,24 @@ canvas{display:block;touch-action:none;}
 .wb.sec{background:var(--s2);color:var(--ink);border:1px solid var(--bdr);}
 
 @media(max-width:360px){
-  .pdice{width:30px;height:30px;padding:4px;}
-  .panel{min-height:42px;padding:.18rem .28rem;}
+  .pdice{width:34px;height:34px;padding:4px;}
+  .panel{min-height:30px;padding:.15rem .25rem;}
+  .dice-card{max-width:68px;}
+  .dice-card-label{font-size:.55rem;}
 }
+
+/* Color picker */
+.color-pick-row{display:flex;flex-direction:column;gap:.45rem;width:100%;}
+.color-pick-row label{font-weight:700;font-size:.84rem;}
+.color-swatches{display:flex;gap:.5rem;flex-wrap:wrap;}
+.cswatch{
+  width:34px;height:34px;border-radius:50%;border:3px solid transparent;
+  cursor:pointer;transition:transform .15s,border-color .15s;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);
+}
+.cswatch:hover{transform:scale(1.12);}
+.cswatch.chosen{border-color:var(--ink)!important;transform:scale(1.18);
+  box-shadow:0 0 0 3px var(--ink),0 2px 8px rgba(0,0,0,.22);}
 </style>
 </head>
 <body>
@@ -237,6 +266,11 @@ canvas{display:block;touch-action:none;}
       </div>
     </div>
   </div>
+  <!-- Your color picker -->
+  <div class="color-pick-row">
+    <label>Your Piece Color (P1)</label>
+    <div class="color-swatches" id="slSwatches"></div>
+  </div>
   <div class="rule-note">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="vertical-align:middle;margin-right:4px"><circle cx="7" cy="7" r="6.5" stroke="#2d6a4f" stroke-width="1.2"/><rect x="6.4" y="3" width="1.2" height="1.2" rx=".6" fill="#2d6a4f"/><rect x="6.4" y="5.5" width="1.2" height="4.5" rx=".6" fill="#2d6a4f"/></svg>
     Roll a <strong>1</strong> to enter Cell 1 — then roll again to move!
@@ -248,7 +282,9 @@ canvas{display:block;touch-action:none;}
 
 <!-- GAME -->
 <div id="game">
+  <!-- Player name/status panels -->
   <div class="panels" id="panels"></div>
+  <!-- Status bar -->
   <div style="display:flex;align-items:center;gap:.35rem;width:100%;padding:0 3px">
     <div class="board-badge" id="boardBadge">Board 1</div>
     <div class="sbar" style="flex:1">
@@ -258,7 +294,12 @@ canvas{display:block;touch-action:none;}
       <div class="bi" id="bi"><span>Thinking</span><div><span class="bd"></span><span class="bd"></span><span class="bd"></span></div></div>
     </div>
   </div>
+  <!-- TOP dice zone -->
+  <div class="dice-zone" id="diceTop"></div>
+  <!-- Board -->
   <div class="bwrap"><canvas id="cv"></canvas></div>
+  <!-- BOTTOM dice zone -->
+  <div class="dice-zone" id="diceBot"></div>
 </div>
 
 <div class="tbox" id="tbox"></div>
@@ -395,12 +436,44 @@ const BOARDS = [
 ];
 
 /* ── Player colours ── */
-const PCOL = [
+const PCOL_BASE = [
   {f:'#2d6a4f', d:'#1b4332', n:'p0'},
   {f:'#7c3aed', d:'#5b21b6', n:'p1'},
   {f:'#f59e0b', d:'#b45309', n:'p2'},
   {f:'#ef4444', d:'#b91c1c', n:'p3'},
 ];
+// Mutable working copy (player 0 color can be overridden by picker)
+let PCOL = PCOL_BASE.map(c => ({...c}));
+
+/* ── Color picker for Snake & Ladder ── */
+const SL_COLOR_OPTIONS = [
+  {f:'#2d6a4f', d:'#1b4332'},  // green
+  {f:'#7c3aed', d:'#5b21b6'},  // purple
+  {f:'#f59e0b', d:'#b45309'},  // amber
+  {f:'#ef4444', d:'#b91c1c'},  // red
+  {f:'#0ea5e9', d:'#0369a1'},  // sky blue
+  {f:'#ec4899', d:'#be185d'},  // pink
+  {f:'#14b8a6', d:'#0f766e'},  // teal
+  {f:'#f97316', d:'#c2410c'},  // orange
+];
+let MY_SL_COLOR_IDX = 0;  // default = green
+
+function buildSLSwatches() {
+  const wrap = document.getElementById('slSwatches');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  SL_COLOR_OPTIONS.forEach((col, idx) => {
+    const s = document.createElement('div');
+    s.className = 'cswatch' + (idx === MY_SL_COLOR_IDX ? ' chosen' : '');
+    s.style.background = col.f;
+    s.dataset.idx = idx;
+    s.onclick = () => {
+      MY_SL_COLOR_IDX = idx;
+      wrap.querySelectorAll('.cswatch').forEach(x => x.classList.toggle('chosen', +x.dataset.idx === idx));
+    };
+    wrap.appendChild(s);
+  });
+}
 
 const DPAT = {0:[],1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 
@@ -410,6 +483,7 @@ let FINISH=[];
 let cv, ctx, CS=40, RAF=null, PH=0;
 let BOARD_IDX=0, BOARD=null;
 let ANIM_PIECE=null;
+let DPR = 1;
 
 /* ── Cell grid helpers ── */
 function cellToXY(cell) {
@@ -435,6 +509,11 @@ function pick(m, el) {
    START GAME
    ═══════════════════════════════════════════════════════ */
 function startGame() {
+  // Apply chosen piece color for player 0 (the human)
+  PCOL = PCOL_BASE.map(c => ({...c}));
+  const chosen = SL_COLOR_OPTIONS[MY_SL_COLOR_IDX];
+  PCOL[0] = { ...chosen, n: 'p0' };
+
   const cfgs = { '4p':[0,1,2,3], '3p':[0,1,2], '2p':[0,3], 'bot':[0,3] };
   const idxs = cfgs[MODE];
   PLAYERS = idxs.map((ci, i) => ({
@@ -442,7 +521,7 @@ function startGame() {
     name: MODE === 'bot' ? (i===0 ? 'You' : 'Bot') : `P${i+1}`,
     bot:  MODE === 'bot' && i > 0,
     pos:  0,
-    entered: false,   // Must roll to secure cell 1 first
+    entered: false,
   }));
 
   // Board rotation — never repeat last board
@@ -478,18 +557,32 @@ function startGame() {
 }
 
 function resize() {
-  const maxW = Math.min(window.innerWidth - 10, window.innerHeight - 230, 510);
+  DPR = window.devicePixelRatio || 1;
+  // Reserve vertical space: nav(48) + panels(38) + sbar(42) + 2 dice-zones(2×70) + gaps(~30) ≈ 298
+  const vReserve = 310;
+  const maxW = Math.min(window.innerWidth - 10, window.innerHeight - vReserve, 510);
   CS = Math.floor(maxW / 10);
   const W = CS * 10;
-  cv.width = cv.height = W;
-  cv.style.width = cv.style.height = W + 'px';
+  // HiDPI: internal pixels = logical × DPR
+  cv.width  = Math.round(W * DPR);
+  cv.height = Math.round(W * DPR);
+  cv.style.width  = W + 'px';
+  cv.style.height = W + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   document.querySelector('.bwrap').style.width = W + 'px';
-  document.getElementById('panels').style.width = W + 'px';
+  // Sync widths for panels, status bar, dice zones
+  ['panels','diceTop','diceBot'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.width = W + 'px';
+  });
   const sr = document.querySelector('#game > div:nth-child(2)');
   if (sr) sr.style.width = W + 'px';
 }
 window.addEventListener('resize', () => {
-  if (document.getElementById('game').classList.contains('on')) { resize(); }
+  if (document.getElementById('game').classList.contains('on')) {
+    resize();
+    if (ctx) ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
 });
 
 /* ═══════════════════════════════════════════════════════
@@ -958,9 +1051,24 @@ function drawPiece(px, py, ci, glow, moving) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   PLAYER PANELS
+   PLAYER PANELS + DICE ZONES
    ═══════════════════════════════════════════════════════ */
+
+/* Determine which player indices go in top vs bottom dice zone.
+   Layout rules:
+   - 2 players : [0] top,  [1] bottom
+   - 3 players : [0,1] top, [2] bottom
+   - 4 players : [0,1] top, [2,3] bottom
+*/
+function getDiceZoneAssignment() {
+  const n = PLAYERS.length;
+  if (n <= 2) return { top: [0], bot: [1] };
+  if (n === 3) return { top: [0, 1], bot: [2] };
+  return { top: [0, 1], bot: [2, 3] };
+}
+
 function buildPanels() {
+  // ── Name/status panels (no dice here) ──
   const el = document.getElementById('panels');
   el.innerHTML = '';
   PLAYERS.forEach((pl, i) => {
@@ -973,12 +1081,33 @@ function buildPanels() {
       <div class="pinfo">
         <div class="pname">${pl.name}</div>
         <div class="ppos waiting" id="pp-${i}">Waiting</div>
-      </div>
-      <div class="pdice" id="die-${i}" onclick="dieClick(${i})">
-        ${Array.from({length:9},(_,k)=>`<div class="pd h" id="dp-${i}-${k}"></div>`).join('')}
-        <div class="dval" id="dv-${i}">—</div>
       </div>`;
     el.appendChild(d);
+  });
+
+  // ── Dice zones ──
+  const assign = getDiceZoneAssignment();
+  buildDiceZone('diceTop', assign.top);
+  buildDiceZone('diceBot', assign.bot);
+}
+
+function buildDiceZone(zoneId, indices) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  zone.innerHTML = '';
+  indices.forEach(i => {
+    const pl = PLAYERS[i];
+    const c  = PCOL[pl.ci];
+    const card = document.createElement('div');
+    card.className = 'dice-card';
+    card.id = `dcard-${i}`;
+    card.innerHTML = `
+      <div class="pdice" id="die-${i}" onclick="dieClick(${i})" style="background:${c.f}">
+        ${Array.from({length:9},(_,k)=>`<div class="pd h" id="dp-${i}-${k}"></div>`).join('')}
+        <div class="dval" id="dv-${i}">—</div>
+      </div>
+      <div class="dice-card-label" id="dlabel-${i}">${pl.name}</div>`;
+    zone.appendChild(card);
   });
 }
 
@@ -1029,6 +1158,11 @@ function syncUI() {
   document.querySelectorAll('.panel').forEach(e => e.classList.remove('active'));
   const ap = document.getElementById(`pan-${CUR}`);
   if (ap) ap.classList.add('active');
+  // Highlight active dice card, dim inactive ones
+  PLAYERS.forEach((_, i) => {
+    const dc = document.getElementById(`dcard-${i}`);
+    if (dc) dc.classList.toggle('inactive', i !== CUR);
+  });
   clearRoll();
   if (!pl.bot && !ROLLED && !OVER) markCanRoll(CUR);
   refreshPositions();
@@ -1275,7 +1409,7 @@ function toast(msg, cls='neu') {
 
 function updateTodayPie() {}
 
-document.addEventListener('DOMContentLoaded', () => { initCommon(); });
+document.addEventListener('DOMContentLoaded', () => { initCommon(); buildSLSwatches(); });
 </script>
 </body>
 </html>
