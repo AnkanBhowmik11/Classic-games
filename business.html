@@ -1379,7 +1379,7 @@ function showRentModal(pi, amount, landlordPi, id) {
     <p>You landed on <strong>${sq.name.replace('\n',' ')}</strong></p>
     <p>Owned by <span style="color:${COLORS[landlordPi]};font-weight:700">${landlord.name}</span></p>
     <div class="card-amount" style="color:#ef4444">${fm(amount)}</div>`;
-  _pendingInfoCb=()=>{ pay(pi,landlordPi,amount); };
+  _pendingInfoCb=()=>{ pay(pi,landlordPi,amount); if (!G.players[pi].bankrupt) resolveAction(); };
   document.getElementById('infoOkBtn').textContent=`Pay ${fm(amount)}`;
   document.getElementById('infoModal').classList.add('on');
   updateUI();
