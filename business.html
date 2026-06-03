@@ -462,7 +462,18 @@ function startGame() {
 
   cv.addEventListener('click', boardClick);
 
-  if (G.players[0].bot) setTimeout(botTurn, 800);
+  // Fast Game Mode: Deal 3 random properties to each player
+  const allProps = SQUARES.filter(s => s.type === 'property' || s.type === 'railway' || s.type === 'utility').map(s => s.id);
+  const shuffledProps = shuffle(allProps);
+  G.players.forEach((pl, pi) => {
+    for(let i=0; i<3; i++) {
+      if(shuffledProps.length > 0) {
+        G.owned[shuffledProps.pop()] = {owner: pi, houses: 0};
+      }
+    }
+  });
+
+  if (G.players[0].bot) setTimeout(botTurn, 400);
 }
 
 /* ═══════════════ UTILS ═══════════════ */
@@ -908,7 +919,7 @@ function execRoll() {
   G.dice=[d1,d2]; G.lastDice=d1+d2; G.rolled=true;
   animDice(d1,d2);
   updateUI();
-  setTimeout(()=>afterRoll(d1,d2), 720);
+  setTimeout(()=>afterRoll(d1,d2), 400);
 }
 
 function afterRoll(d1,d2) {
@@ -1029,12 +1040,12 @@ function resolveAction() {
   if (pl.bankrupt) { nextPlayer(); return; }
   if (pl.bot) {
     botBuild();
-    setTimeout(()=>endTurn(), 600);
+    setTimeout(()=>endTurn(), 300);
   } else {
     G.phase='done';
     updateUI();
     if (!hasBuildable(G.cur)) {
-      setTimeout(()=>endTurn(), 800);
+      setTimeout(()=>endTurn(), 400);
     }
   }
 }
@@ -1045,7 +1056,7 @@ function endTurn() {
     G.extraRoll=false; G.rolled=false; G.phase='roll';
     toast(`${G.players[G.cur].name} rolled doubles — extra turn! 🎲`,'#a78bfa');
     updateUI();
-    if (G.players[G.cur].bot) setTimeout(botTurn,900);
+    if (G.players[G.cur].bot) setTimeout(botTurn, 500);
     return;
   }
   nextPlayer();
@@ -1057,7 +1068,7 @@ function nextPlayer() {
   while(G.players[next].bankrupt && tries<G.players.length) {next=(next+1)%G.players.length;tries++;}
   G.cur=next; G.rolled=false; G.extraRoll=false; G.doubles=0; G.phase='roll';
   updateUI();
-  if (G.players[G.cur].bot) setTimeout(botTurn,1100);
+  if (G.players[G.cur].bot) setTimeout(botTurn, 600);
 }
 
 /* ═══════════════ PROPERTY ═══════════════ */
