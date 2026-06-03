@@ -70,7 +70,6 @@ function initFirebase() {
         authBtn.innerText = "Sign In";
         authBtn.classList.remove('active');
       }
-      openAuthModal();
     }
   });
 }

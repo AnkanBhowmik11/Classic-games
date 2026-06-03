@@ -403,7 +403,7 @@ const WORD_BANK = {
   POWER:    {pos:'n.', def:'The rate at which work is done; the rate of energy transfer, measured in watts.'},
   SPEED:    {pos:'n.', def:'The rate at which an object moves; distance covered per unit time without direction.'},
   SPACE:    {pos:'n.', def:'The limitless three-dimensional expanse in which matter and energy exist.'},
-  PLATE:    {pos:'n.', def:'A large rigid section of the Earth's lithosphere; also a flat piece of metal in batteries.'},
+  PLATE:    {pos:'n.', def:'A large rigid section of the Earth\'s lithosphere; also a flat piece of metal in batteries.'},
   NERVE:    {pos:'n.', def:'A cord-like bundle of fibers transmitting electrochemical impulses between brain and body.'},
   PULSE:    {pos:'n.', def:'A rhythmic throbbing of arteries produced by the regular contractions of the heart.'},
   GRAIN:    {pos:'n.', def:'A small hard seed; also a granule of crystalline structure in metals or minerals.'},
@@ -610,93 +610,59 @@ const WORD_BANK = {
    The grid is generated from a "layout" specifying Across/Down placements.
 */
 
-// Generate 500 puzzles from our word bank.
-// Layout: array of { word, dir:'A'|'D', row, col }
-// 500 levels grouped in batches of 100 per difficulty.
-
-const ALL_PUZZLES = buildAllPuzzles();
+const ALL_PUZZLES = (function() {
+  try { return buildAllPuzzles(); } catch(e) { console.error(e); return []; }
+})();
 
 function buildAllPuzzles() {
-  // Pre-defined puzzle templates. Each template specifies which words go where.
-  // We have enough unique word combinations for 500 unique puzzles.
-  const templates = getPuzzleTemplates(); // returns 500 templates
-  return templates.map((t, i) => ({
+  return getPuzzleTemplates().map((t, i) => ({
     idx: i,
     difficulty: i < 100 ? 'easy' : i < 250 ? 'medium' : i < 400 ? 'hard' : 'expert',
-    layout: t.layout,
-    words: t.layout.map(e => e.word),
+    layout: t,
+    words: t.map(e => e.word),
   }));
 }
 
 function getPuzzleTemplates() {
-  // Pool of hand-crafted crossing patterns referencing our word bank keys.
-  // Each template = array of {word (key in WORD_BANK), dir, row, col}
-  // Grid size is computed automatically from the layout.
-
   const pool = [];
 
-  // ── 100 Easy puzzles (3-5 letter words, simple grids) ──
-  const easy5 = [
-    // 5-word easy crosses
-    [{word:'ATOM',dir:'A',row:0,col:0},{word:'LENS',dir:'D',row:0,col:2},{word:'NOVA',dir:'A',row:2,col:0},{word:'BOND',dir:'D',row:0,col:0},{word:'CELL',dir:'A',row:4,col:0}],
-    [{word:'GENE',dir:'A',row:0,col:0},{word:'ECHO',dir:'D',row:0,col:0},{word:'HEAT',dir:'A',row:2,col:0},{word:'NOUN',dir:'D',row:0,col:2},{word:'VERB',dir:'A',row:4,col:0}],
-    [{word:'WAVE',dir:'A',row:0,col:0},{word:'EPIC',dir:'D',row:0,col:0},{word:'AXIS',dir:'A',row:2,col:0},{word:'MODE',dir:'D',row:0,col:2},{word:'FLUX',dir:'A',row:4,col:0}],
-    [{word:'MASS',dir:'A',row:0,col:0},{word:'MEAN',dir:'D',row:0,col:0},{word:'ATOM',dir:'A',row:2,col:0},{word:'LENS',dir:'D',row:0,col:2},{word:'GENE',dir:'A',row:4,col:0}],
-    [{word:'NOVA',dir:'A',row:0,col:0},{word:'NOUN',dir:'D',row:0,col:0},{word:'VERB',dir:'A',row:2,col:0},{word:'EPIC',dir:'D',row:0,col:2},{word:'LYRIC',dir:'A',row:4,col:0}],
-    [{word:'CELL',dir:'A',row:0,col:0},{word:'CHORD',dir:'D',row:0,col:0},{word:'GRAPH',dir:'A',row:2,col:0},{word:'HEAT',dir:'D',row:0,col:2},{word:'SLOPE',dir:'A',row:4,col:0}],
-    [{word:'BOND',dir:'A',row:0,col:0},{word:'BLOOD',dir:'D',row:0,col:0},{word:'BRAIN',dir:'A',row:2,col:0},{word:'ORBIT',dir:'D',row:0,col:2},{word:'SOLAR',dir:'A',row:4,col:0}],
-    [{word:'FLUX',dir:'A',row:0,col:0},{word:'FLORA',dir:'D',row:0,col:0},{word:'FAUNA',dir:'A',row:2,col:0},{word:'FOCUS',dir:'D',row:0,col:2},{word:'FORCE',dir:'A',row:4,col:0}],
-    [{word:'HEAT',dir:'A',row:0,col:0},{word:'HEDGE',dir:'D',row:0,col:0},{word:'ASSET',dir:'A',row:2,col:0},{word:'YIELD',dir:'D',row:0,col:2},{word:'DEBIT',dir:'A',row:4,col:0}],
+  // ── Easy (100 levels, 10 templates × 10) ──
+  const easyT = [
+    [{word:'ATOM',dir:'A',row:0,col:0},{word:'BOND',dir:'D',row:0,col:1},{word:'NOVA',dir:'A',row:2,col:0},{word:'NOUN',dir:'D',row:0,col:3},{word:'CELL',dir:'A',row:4,col:0}],
+    [{word:'GENE',dir:'A',row:0,col:0},{word:'ECHO',dir:'D',row:0,col:1},{word:'HEAT',dir:'A',row:2,col:0},{word:'VERB',dir:'A',row:4,col:0},{word:'LENS',dir:'D',row:2,col:3}],
+    [{word:'WAVE',dir:'A',row:0,col:0},{word:'FLUX',dir:'D',row:0,col:3},{word:'AXIS',dir:'A',row:2,col:0},{word:'MODE',dir:'D',row:0,col:1},{word:'MASS',dir:'A',row:4,col:0}],
+    [{word:'MASS',dir:'A',row:0,col:0},{word:'MEAN',dir:'D',row:0,col:0},{word:'ATOM',dir:'A',row:2,col:0},{word:'LENS',dir:'D',row:0,col:3},{word:'GENE',dir:'A',row:4,col:0}],
+    [{word:'NOVA',dir:'A',row:0,col:0},{word:'NOUN',dir:'D',row:0,col:0},{word:'VERB',dir:'A',row:2,col:0},{word:'LYRIC',dir:'A',row:4,col:0},{word:'TROPE',dir:'D',row:2,col:1}],
+    [{word:'CELL',dir:'A',row:0,col:0},{word:'CHORD',dir:'D',row:0,col:0},{word:'GRAPH',dir:'A',row:2,col:0},{word:'SLOPE',dir:'A',row:4,col:0},{word:'HEAT',dir:'D',row:2,col:3}],
+    [{word:'BOND',dir:'A',row:0,col:0},{word:'BLOOD',dir:'D',row:0,col:0},{word:'BRAIN',dir:'A',row:2,col:0},{word:'SOLAR',dir:'A',row:4,col:0},{word:'ORBIT',dir:'D',row:2,col:3}],
+    [{word:'HEAT',dir:'A',row:0,col:0},{word:'HEDGE',dir:'D',row:0,col:0},{word:'ASSET',dir:'A',row:2,col:0},{word:'YIELD',dir:'D',row:0,col:3},{word:'DEBIT',dir:'A',row:4,col:0}],
     [{word:'ECHO',dir:'A',row:0,col:0},{word:'ELEGY',dir:'D',row:0,col:0},{word:'HAIKU',dir:'A',row:2,col:0},{word:'PROSE',dir:'D',row:0,col:2},{word:'METER',dir:'A',row:4,col:0}],
-  ];
     [{word:'FLUX',dir:'A',row:0,col:0},{word:'FLORA',dir:'D',row:0,col:0},{word:'FAUNA',dir:'A',row:2,col:0},{word:'FORCE',dir:'D',row:2,col:4},{word:'EPOCH',dir:'A',row:4,col:0}],
-    [{word:'PRIME',dir:'A',row:0,col:0},{word:'RATIO',dir:'A',row:2,col:0},{word:'AXIOM',dir:'A',row:4,col:0},{word:'LOGIC',dir:'D',row:0,col:3},{word:'RHYME',dir:'D',row:2,col:4}],
-    [{word:'LIMIT',dir:'A',row:0,col:0},{word:'IONIC',dir:'A',row:2,col:0},{word:'LASER',dir:'A',row:4,col:0},{word:'LIVER',dir:'D',row:0,col:0},{word:'LOGIC',dir:'D',row:2,col:4}],
-    [{word:'DELTA',dir:'A',row:0,col:0},{word:'EPOCH',dir:'A',row:2,col:0},{word:'TAIGA',dir:'A',row:4,col:0},{word:'DENSE',dir:'D',row:0,col:0},{word:'ELEGY',dir:'D',row:2,col:4}],
-    [{word:'TRADE',dir:'A',row:0,col:0},{word:'RHYME',dir:'A',row:2,col:0},{word:'THEME',dir:'A',row:4,col:0},{word:'TROPE',dir:'D',row:0,col:0},{word:'RIDGE',dir:'D',row:2,col:4}],
-    [{word:'VIRUS',dir:'A',row:0,col:0},{word:'ALLOY',dir:'A',row:2,col:0},{word:'ARRAY',dir:'A',row:4,col:0},{word:'VAPOR',dir:'D',row:0,col:0},{word:'ANGLE',dir:'D',row:2,col:4}],
-    [{word:'ORBIT',dir:'A',row:0,col:0},{word:'IONIC',dir:'A',row:2,col:0},{word:'QUEUE',dir:'A',row:4,col:0},{word:'OXIDE',dir:'D',row:0,col:0},{word:'INERT',dir:'D',row:2,col:4}],
-    [{word:'TOKEN',dir:'A',row:0,col:0},{word:'STACK',dir:'A',row:2,col:0},{word:'DECAY',dir:'A',row:4,col:0},{word:'THEME',dir:'D',row:0,col:0},{word:'SLOPE',dir:'D',row:2,col:3}],
-    [{word:'POINT',dir:'A',row:0,col:0},{word:'PROXY',dir:'A',row:2,col:0},{word:'PATCH',dir:'A',row:4,col:0},{word:'POLAR',dir:'D',row:0,col:0},{word:'PIXEL',dir:'D',row:2,col:4}],
-    [{word:'QUARK',dir:'A',row:0,col:0},{word:'YIELD',dir:'A',row:2,col:0},{word:'CACHE',dir:'A',row:4,col:0},{word:'QUERY',dir:'D',row:0,col:0},{word:'YEAST',dir:'D',row:2,col:3}],
-    [{word:'NERVE',dir:'A',row:0,col:0},{word:'BLOOD',dir:'A',row:2,col:0},{word:'COMET',dir:'A',row:4,col:0},{word:'NEURON',dir:'D',row:0,col:0},{word:'BASIN',dir:'D',row:2,col:4}],
-    [{word:'WAVE',dir:'A',row:0,col:0},{word:'AXIS',dir:'A',row:2,col:0},{word:'FLUX',dir:'A',row:4,col:0},{word:'VAPOR',dir:'D',row:0,col:1},{word:'MODE',dir:'D',row:0,col:3}],
   ];
+  for (let i = 0; i < 100; i++) pool.push(easyT[i % easyT.length].map(e => ({...e})));
 
-  for (let i = 0; i < 100; i++) {
-    const src = easyTemplates[i % easyTemplates.length];
-    pool.push({ layout: src.map(e => ({...e})) });
-  }
-
-  const mediumTemplates = [
+  // ── Medium (150 levels, 15 templates × 10) ──
+  const medT = [
     [{word:'FORCE',dir:'A',row:0,col:0},{word:'FLORA',dir:'D',row:0,col:0},{word:'ORBIT',dir:'A',row:2,col:0},{word:'LIGHT',dir:'A',row:4,col:0},{word:'TROPE',dir:'D',row:2,col:4},{word:'SOLAR',dir:'A',row:6,col:0}],
     [{word:'POWER',dir:'A',row:0,col:0},{word:'PROSE',dir:'D',row:0,col:0},{word:'RHYME',dir:'A',row:2,col:0},{word:'NERVE',dir:'A',row:4,col:0},{word:'HAIKU',dir:'D',row:2,col:3},{word:'EPOCH',dir:'A',row:6,col:0}],
     [{word:'SPEED',dir:'A',row:0,col:0},{word:'SOLAR',dir:'D',row:0,col:0},{word:'LASER',dir:'A',row:2,col:0},{word:'ANGLE',dir:'D',row:0,col:3},{word:'RATIO',dir:'A',row:4,col:0},{word:'DELTA',dir:'A',row:6,col:0}],
     [{word:'BLOOD',dir:'A',row:0,col:0},{word:'BIOME',dir:'D',row:0,col:0},{word:'LOGIC',dir:'A',row:2,col:0},{word:'GRAIN',dir:'A',row:4,col:0},{word:'CURVE',dir:'D',row:0,col:4},{word:'ALLOY',dir:'A',row:6,col:0}],
     [{word:'BRAIN',dir:'A',row:0,col:0},{word:'BASIN',dir:'D',row:0,col:0},{word:'AXIOM',dir:'A',row:2,col:0},{word:'PRISM',dir:'A',row:4,col:0},{word:'NOMAD',dir:'D',row:2,col:3},{word:'MAGMA',dir:'A',row:6,col:0}],
     [{word:'OXIDE',dir:'A',row:0,col:0},{word:'ORBIT',dir:'D',row:0,col:0},{word:'IONIC',dir:'A',row:2,col:0},{word:'COMET',dir:'D',row:0,col:3},{word:'ALGAE',dir:'A',row:4,col:0},{word:'ETHICS',dir:'A',row:6,col:0}],
-    [{word:'NERVE',dir:'A',row:0,col:0},{word:'VAPOR',dir:'A',row:2,col:0},{word:'PIXEL',dir:'A',row:4,col:0},{word:'QUERY',dir:'D',row:0,col:3},{word:'LYRIC',dir:'A',row:6,col:0},{word:'LOGIC',dir:'D',row:4,col:4}],
     [{word:'LUNAR',dir:'A',row:0,col:0},{word:'LIMIT',dir:'D',row:0,col:0},{word:'ALLOY',dir:'A',row:2,col:0},{word:'LIVER',dir:'D',row:0,col:3},{word:'QUARK',dir:'A',row:4,col:0},{word:'STANZA',dir:'A',row:6,col:0}],
-    [{word:'CLONE',dir:'A',row:0,col:0},{word:'MOLAR',dir:'A',row:2,col:0},{word:'YIELD',dir:'A',row:4,col:0},{word:'SYMBOL',dir:'A',row:6,col:0},{word:'CENSUS',dir:'D',row:0,col:3},{word:'COLONY',dir:'D',row:0,col:1}],
     [{word:'POLAR',dir:'A',row:0,col:0},{word:'PULSE',dir:'D',row:0,col:0},{word:'LAYER',dir:'A',row:2,col:0},{word:'YIELD',dir:'A',row:4,col:0},{word:'REVOLT',dir:'A',row:6,col:0},{word:'SENATE',dir:'D',row:2,col:4}],
-    [{word:'PROTON',dir:'A',row:0,col:0},{word:'PLASMA',dir:'D',row:0,col:0},{word:'ALGAE',dir:'A',row:2,col:0},{word:'NERVE',dir:'A',row:4,col:0},{word:'SPINE',dir:'D',row:2,col:3},{word:'DECAY',dir:'A',row:6,col:0}],
     [{word:'FOSSIL',dir:'A',row:0,col:0},{word:'FAUNA',dir:'D',row:0,col:1},{word:'STEPPE',dir:'A',row:2,col:0},{word:'TUNDRA',dir:'A',row:4,col:0},{word:'TAIGA',dir:'D',row:2,col:5},{word:'LAGOON',dir:'A',row:6,col:0}],
     [{word:'MATRIX',dir:'A',row:0,col:0},{word:'MAGNET',dir:'D',row:0,col:0},{word:'MEDIAN',dir:'A',row:2,col:0},{word:'FACTOR',dir:'D',row:0,col:4},{word:'SCALAR',dir:'A',row:4,col:0},{word:'SERVER',dir:'A',row:6,col:0}],
     [{word:'BINARY',dir:'A',row:0,col:0},{word:'BUDGET',dir:'D',row:0,col:1},{word:'THREAD',dir:'A',row:2,col:0},{word:'CIPHER',dir:'A',row:4,col:0},{word:'CREDIT',dir:'D',row:2,col:5},{word:'KERNEL',dir:'A',row:6,col:0}],
-    [{word:'ENZYME',dir:'A',row:0,col:0},{word:'ELEGY',dir:'D',row:0,col:0},{word:'FLORA',dir:'A',row:2,col:0},{word:'FOSSIL',dir:'A',row:4,col:0},{word:'SEISMIC',dir:'A',row:6,col:0}],
     [{word:'TARIFF',dir:'A',row:0,col:0},{word:'TRADE',dir:'D',row:0,col:0},{word:'TREATY',dir:'A',row:2,col:0},{word:'TYRANT',dir:'A',row:4,col:0},{word:'REVOLT',dir:'D',row:2,col:5},{word:'SENATE',dir:'A',row:6,col:0}],
     [{word:'CARTEL',dir:'A',row:0,col:0},{word:'CARBON',dir:'D',row:0,col:0},{word:'COLONY',dir:'A',row:2,col:0},{word:'CENSUS',dir:'A',row:4,col:0},{word:'CLERGY',dir:'D',row:2,col:5},{word:'SCHISM',dir:'A',row:6,col:0}],
-    [{word:'ORACLE',dir:'A',row:0,col:0},{word:'ORBIT',dir:'D',row:0,col:0},{word:'PATRON',dir:'A',row:2,col:0},{word:'PLAGUE',dir:'A',row:4,col:0},{word:'HERESY',dir:'D',row:2,col:3},{word:'VASSAL',dir:'A',row:6,col:0}],
     [{word:'GEYSER',dir:'A',row:0,col:0},{word:'GLACIER',dir:'D',row:0,col:0},{word:'CANYON',dir:'A',row:2,col:0},{word:'MANTLE',dir:'A',row:4,col:0},{word:'LAGOON',dir:'D',row:2,col:5},{word:'MAGMA',dir:'A',row:6,col:0}],
     [{word:'VECTOR',dir:'A',row:0,col:0},{word:'VIRUS',dir:'D',row:0,col:0},{word:'SYMBOL',dir:'A',row:2,col:0},{word:'SATIRE',dir:'A',row:4,col:0},{word:'SYNTAX',dir:'D',row:2,col:5},{word:'STANZA',dir:'A',row:6,col:0}],
   ];
+  for (let i = 0; i < 150; i++) pool.push(medT[i % medT.length].map(e => ({...e})));
 
-  for (let i = 0; i < 150; i++) {
-    const src = mediumTemplates[i % mediumTemplates.length];
-    pool.push({ layout: src.map(e => ({...e})) });
-  }
-
-  const hardTemplates = [
+  // ── Hard (150 levels, 10 templates × 15) ──
+  const hardT = [
     [{word:'OSMOSIS',dir:'A',row:0,col:0},{word:'OXYGEN',dir:'D',row:0,col:0},{word:'MAGNET',dir:'A',row:2,col:0},{word:'NEURON',dir:'A',row:4,col:0},{word:'ENZYME',dir:'D',row:0,col:4},{word:'SATIRE',dir:'A',row:6,col:0},{word:'FOSSIL',dir:'D',row:0,col:5},{word:'LAGOON',dir:'A',row:8,col:0}],
     [{word:'PROTEIN',dir:'A',row:0,col:0},{word:'PROTON',dir:'D',row:0,col:0},{word:'PHOTON',dir:'A',row:2,col:0},{word:'TUNDRA',dir:'D',row:0,col:4},{word:'CARBON',dir:'A',row:4,col:0},{word:'FACTOR',dir:'A',row:6,col:0},{word:'REFLEX',dir:'D',row:0,col:5},{word:'SYMBOL',dir:'A',row:8,col:0}],
     [{word:'GLACIER',dir:'A',row:0,col:0},{word:'GLUCOSE',dir:'D',row:0,col:0},{word:'EROSION',dir:'A',row:2,col:0},{word:'STANZA',dir:'D',row:0,col:5},{word:'CENSUS',dir:'A',row:4,col:0},{word:'VECTOR',dir:'A',row:6,col:0},{word:'TARIFF',dir:'D',row:0,col:4},{word:'TYRANT',dir:'A',row:8,col:0}],
@@ -708,29 +674,22 @@ function getPuzzleTemplates() {
     [{word:'THEOREM',dir:'A',row:0,col:0},{word:'TARIFF',dir:'D',row:0,col:0},{word:'ELECTRON',dir:'A',row:2,col:0},{word:'CARTEL',dir:'D',row:0,col:5},{word:'DYNASTY',dir:'A',row:4,col:0},{word:'CLERGY',dir:'D',row:0,col:2},{word:'GEYSER',dir:'D',row:0,col:4},{word:'BARTER',dir:'A',row:8,col:0}],
     [{word:'NUCLEUS',dir:'A',row:0,col:0},{word:'NOMAD',dir:'D',row:0,col:0},{word:'NEUTRON',dir:'A',row:2,col:0},{word:'ETHICS',dir:'D',row:0,col:5},{word:'RITUAL',dir:'A',row:4,col:0},{word:'SYNTAX',dir:'D',row:0,col:1},{word:'PARADOX',dir:'A',row:6,col:0},{word:'EQUITY',dir:'D',row:0,col:4},{word:'FAMINE',dir:'A',row:8,col:0}],
   ];
+  for (let i = 0; i < 150; i++) pool.push(hardT[i % hardT.length].map(e => ({...e})));
 
-  for (let i = 0; i < 150; i++) {
-    const src = hardTemplates[i % hardTemplates.length];
-    pool.push({ layout: src.map(e => ({...e})) });
-  }
-
-  const expertTemplates = [
+  // ── Expert (100 levels, 10 templates × 10) ──
+  const expT = [
     [{word:'MOLECULE',dir:'A',row:0,col:0},{word:'MONOPOLY',dir:'D',row:0,col:0},{word:'ALLEGORY',dir:'A',row:2,col:0},{word:'CATALYST',dir:'D',row:0,col:6},{word:'ELECTRON',dir:'A',row:4,col:0},{word:'METAPHOR',dir:'D',row:0,col:2},{word:'INTEGRAL',dir:'A',row:6,col:0},{word:'ALLUSION',dir:'D',row:0,col:4},{word:'INFLATION',dir:'A',row:8,col:0}],
     [{word:'TECTONIC',dir:'A',row:0,col:0},{word:'THEOREM',dir:'D',row:0,col:0},{word:'ISOTOPE',dir:'D',row:0,col:5},{word:'DIVIDEND',dir:'A',row:4,col:0},{word:'DYNASTY',dir:'D',row:0,col:2},{word:'PHONEME',dir:'A',row:6,col:0},{word:'MORPHEME',dir:'D',row:0,col:4},{word:'PARADOX',dir:'A',row:8,col:0},{word:'SUBSIDY',dir:'D',row:0,col:1}],
     [{word:'MITOSIS',dir:'A',row:0,col:0},{word:'MEIOSIS',dir:'D',row:0,col:0},{word:'OSMOSIS',dir:'A',row:2,col:0},{word:'POLYMER',dir:'D',row:0,col:5},{word:'NUCLEUS',dir:'A',row:4,col:0},{word:'PROTEIN',dir:'D',row:0,col:2},{word:'HORMONE',dir:'A',row:6,col:0},{word:'NEUTRON',dir:'D',row:0,col:4},{word:'ELEMENT',dir:'A',row:8,col:0},{word:'GLUCOSE',dir:'D',row:0,col:1}],
     [{word:'ALLEGORY',dir:'A',row:0,col:0},{word:'ALLUSION',dir:'D',row:0,col:0},{word:'METAPHOR',dir:'A',row:2,col:0},{word:'MORPHEME',dir:'D',row:0,col:6},{word:'CATALYST',dir:'A',row:4,col:0},{word:'THEOREM',dir:'D',row:0,col:2},{word:'MOLECULE',dir:'A',row:6,col:0},{word:'INTEGRAL',dir:'D',row:0,col:4},{word:'EROSION',dir:'A',row:8,col:0},{word:'GLACIER',dir:'D',row:0,col:1}],
     [{word:'INFLATION',dir:'A',row:0,col:0},{word:'ISOTOPE',dir:'D',row:0,col:0},{word:'RECESSION',dir:'A',row:2,col:0},{word:'ELECTRON',dir:'A',row:4,col:0},{word:'GRAVITY',dir:'D',row:0,col:2},{word:'NUCLEUS',dir:'A',row:6,col:0},{word:'CIRCUIT',dir:'D',row:0,col:4},{word:'POLYMER',dir:'A',row:8,col:0},{word:'VOLCANO',dir:'D',row:0,col:1}],
-    [{word:'MONOPOLY',dir:'A',row:0,col:0},{word:'MOLECULE',dir:'D',row:0,col:0},{word:'DIVIDEND',dir:'A',row:2,col:0},{word:'PARADOX',dir:'A',row:4,col:0},{word:'PATRON',dir:'D',row:0,col:1},{word:'SURPLUS',dir:'D',row:0,col:5},{word:'THEOREM',dir:'A',row:8,col:0},{word:'TUNDRA',dir:'D',row:0,col:3},{word:'OSMOSIS',dir:'A',row:6,col:0}],
+    [{word:'MONOPOLY',dir:'A',row:0,col:0},{word:'MOLECULE',dir:'D',row:0,col:0},{word:'DIVIDEND',dir:'A',row:2,col:0},{word:'PARADOX',dir:'A',row:4,col:0},{word:'PATRON',dir:'D',row:0,col:1},{word:'SURPLUS',dir:'D',row:0,col:5},{word:'OSMOSIS',dir:'A',row:6,col:0},{word:'THEOREM',dir:'A',row:8,col:0},{word:'TUNDRA',dir:'D',row:0,col:3}],
     [{word:'TECTONIC',dir:'A',row:0,col:0},{word:'TARIFF',dir:'D',row:0,col:0},{word:'CATALYST',dir:'A',row:2,col:0},{word:'COLONY',dir:'D',row:0,col:5},{word:'PHONEME',dir:'A',row:4,col:0},{word:'PATRON',dir:'D',row:0,col:2},{word:'MORPHEME',dir:'A',row:6,col:0},{word:'ETHICS',dir:'D',row:0,col:4},{word:'ALLEGORY',dir:'A',row:8,col:0},{word:'ALLOY',dir:'D',row:0,col:1}],
     [{word:'MITOSIS',dir:'A',row:0,col:0},{word:'MONSOON',dir:'D',row:0,col:0},{word:'MEIOSIS',dir:'A',row:2,col:0},{word:'OSMOSIS',dir:'A',row:4,col:0},{word:'SCHISM',dir:'D',row:0,col:2},{word:'VOLCANO',dir:'A',row:6,col:0},{word:'CIRCUIT',dir:'D',row:0,col:5},{word:'GLACIER',dir:'A',row:8,col:0},{word:'GRAVITY',dir:'D',row:0,col:1}],
     [{word:'ELECTRON',dir:'A',row:0,col:0},{word:'ELEMENT',dir:'D',row:0,col:0},{word:'ISOTOPE',dir:'A',row:2,col:0},{word:'SATIRE',dir:'D',row:0,col:5},{word:'THEOREM',dir:'A',row:4,col:0},{word:'TERRAIN',dir:'D',row:0,col:2},{word:'CATALYST',dir:'A',row:6,col:0},{word:'CENSUS',dir:'D',row:0,col:4},{word:'MONOPOLY',dir:'A',row:8,col:0},{word:'MAGNET',dir:'D',row:0,col:1}],
     [{word:'INTEGRAL',dir:'A',row:0,col:0},{word:'ISOTOPE',dir:'D',row:0,col:0},{word:'MOLECULE',dir:'A',row:2,col:0},{word:'LATENCY',dir:'D',row:0,col:5},{word:'ALLEGORY',dir:'A',row:6,col:0},{word:'DYNASTY',dir:'D',row:0,col:4},{word:'DIVIDEND',dir:'A',row:8,col:0},{word:'DEFICIT',dir:'D',row:0,col:1}],
   ];
-
-  for (let i = 0; i < 100; i++) {
-    const src = expertTemplates[i % expertTemplates.length];
-    pool.push({ layout: src.map(e => ({...e})) });
-  }
+  for (let i = 0; i < 100; i++) pool.push(expT[i % expT.length].map(e => ({...e})));
 
   return pool;
 }
