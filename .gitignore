@@ -16,3 +16,6 @@ puzzles_output.js
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Node
+node_modules/
