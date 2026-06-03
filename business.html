@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Business – Classic Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="common.css">
+<style>
+:root{
+  --bg:#0f0e0c;--surface:#1e1c18;--surface2:#28261f;
+  --ink:#f2ede0;--ink2:#a09880;--border:#2e2c26;
+  --accent:#c9a84c;--accent-lt:rgba(201,168,76,.15);
+  --sh:0 2px 8px rgba(0,0,0,.4);--sh-lg:0 8px 32px rgba(0,0,0,.6);
+  --board-border:#6d4c29;--board-frame:#4a3520;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--ink);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden;user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+/* ── NAV ── */
+.nav{display:flex;align-items:center;justify-content:space-between;
+  padding:.55rem 1rem;background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:.45rem;font-weight:800;font-size:1.1rem}
+.li{width:22px;height:22px;background:var(--ink);border-radius:5px;display:grid;
+  grid-template-columns:1fr 1fr;gap:2px;padding:3px}
+.li i{background:var(--bg);border-radius:2px}
+.bk{display:flex;align-items:center;gap:.3rem;font-size:.8rem;font-weight:600;
+  color:var(--ink2);text-decoration:none;background:var(--surface2);
+  border:1px solid var(--border);border-radius:20px;padding:.25rem .65rem}
+
+/* ── SETUP ── */
+#setup{display:flex;flex-direction:column;align-items:center;gap:1rem;
+  padding:1rem 1rem 2rem;max-width:480px;margin:0 auto}
+.sh{text-align:center;margin-bottom:.3rem}
+.sh h1{font-size:2rem;font-weight:800;letter-spacing:-.02em}
+.sh h1 span{color:var(--accent)}
+.sh p{color:var(--ink2);font-size:.9rem;margin-top:.25rem}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;width:100%}
+.mc{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;
+  padding:.8rem .6rem;text-align:center;cursor:pointer;transition:all .18s}
+.mc:active{transform:scale(.97)}
+.mc.s{border-color:var(--accent);background:var(--accent-lt)}
+.mi{font-size:1.6rem;margin-bottom:.3rem}
+.ml{font-weight:700;font-size:.88rem}
+.md{font-size:.7rem;color:var(--ink2);margin-top:.15rem}
+.gb{background:var(--accent);color:#1a1200;padding:.85rem 2.5rem;
+  border-radius:25px;font-weight:800;font-size:1rem;width:100%;
+  box-shadow:0 4px 16px rgba(201,168,76,.35);transition:transform .15s,box-shadow .15s}
+.gb:active{transform:scale(.97);box-shadow:0 2px 8px rgba(201,168,76,.25)}
+
+/* ── GAME ── */
+#game{display:none;flex-direction:column;align-items:center;gap:.6rem;
+  padding:.4rem .4rem 5rem}
+#game.on{display:flex}
+#boardWrap{position:relative;display:flex;justify-content:center}
+#boardWrap canvas{display:block;border-radius:3px;
+  box-shadow:0 0 0 5px var(--board-border),0 0 0 9px var(--board-frame),var(--sh-lg)}
+
+/* ── INFO BAR ── */
+.ibar{display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:.4rem .6rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;gap:.6rem}
+.cur-player{display:flex;align-items:center;gap:.5rem}
+.pdot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);flex-shrink:0}
+.cur-name{font-weight:700;font-size:.9rem}
+.cur-money{font-family:'JetBrains Mono',monospace;font-size:.85rem;color:var(--accent);font-weight:700}
+.phase-label{font-size:.72rem;color:var(--ink2)}
+
+/* ── DICE ── */
+.dice-wrap{display:flex;gap:.5rem;align-items:center;flex-shrink:0}
+.pdice{width:38px;height:38px;background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:8px;display:grid;grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(3,1fr);padding:5px;gap:3px;
+  box-shadow:inset 0 2px 4px rgba(0,0,0,.4)}
+.pdice.rolling{animation:shake .12s infinite alternate}
+@keyframes shake{from{transform:rotate(-8deg) scale(.95)}to{transform:rotate(8deg) scale(1.05)}}
+.dp{border-radius:50%;background:var(--ink);transition:opacity .1s}
+.dp.h{opacity:1}
+.dp.l{opacity:0}
+
+/* ── CONTROLS ── */
+.ctrl{display:flex;gap:.5rem;width:100%;justify-content:center;flex-wrap:wrap}
+.btn{padding:.6rem 1.2rem;border-radius:22px;font-weight:700;font-size:.85rem;
+  transition:transform .13s,box-shadow .13s;border:1.5px solid transparent}
+.btn:active{transform:scale(.95)}
+.btn-primary{background:var(--accent);color:#1a1200;border-color:var(--accent);
+  box-shadow:0 3px 12px rgba(201,168,76,.3)}
+.btn-sec{background:var(--surface);color:var(--ink);border-color:var(--border)}
+.btn-red{background:#ef4444;color:#fff;border-color:#ef4444}
+.btn:disabled{opacity:.35;pointer-events:none}
+
+/* ── PLAYER CARDS ── */
+#playerCards{display:flex;gap:.5rem;width:100%;overflow-x:auto;padding-bottom:.3rem}
+#playerCards::-webkit-scrollbar{height:3px}
+#playerCards::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.pcard{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;
+  padding:.5rem .65rem;min-width:110px;flex-shrink:0;transition:border-color .2s}
+.pcard.active{border-color:var(--accent)}
+.pcard.bankrupt{opacity:.4;filter:grayscale(1)}
+.pc-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem}
+.pc-dot{width:10px;height:10px;border-radius:50%}
+.pc-name{font-weight:700;font-size:.78rem}
+.pc-money{font-family:'JetBrains Mono',monospace;font-size:.82rem;font-weight:700;color:var(--accent)}
+.pc-props{font-size:.65rem;color:var(--ink2)}
+.bot-badge{font-size:.6rem;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:0 .3rem;color:var(--ink2)}
+
+/* ── MODALS ── */
+.mover{position:fixed;inset:0;background:rgba(15,14,12,.72);display:none;
+  place-items:center;z-index:500;backdrop-filter:blur(5px);padding:.8rem}
+.mover.on{display:grid}
+.mcard{background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  width:100%;max-width:380px;max-height:90vh;overflow-y:auto;
+  box-shadow:var(--sh-lg);animation:popUp .22s cubic-bezier(.175,.885,.32,1.275)}
+@keyframes popUp{from{transform:scale(.88);opacity:0}to{transform:scale(1);opacity:1}}
+.mhdr{padding:1rem 1.2rem .6rem;display:flex;align-items:center;justify-content:space-between}
+.mhdr h3{font-size:1.05rem;font-weight:800}
+.mclose{width:28px;height:28px;border-radius:50%;background:var(--surface2);
+  border:1px solid var(--border);font-size:.9rem;display:grid;place-items:center;cursor:pointer}
+.mbody{padding:.2rem 1.2rem 1rem}
+.mbody p{font-size:.88rem;color:var(--ink2);line-height:1.5;margin-bottom:.5rem}
+.mfooter{padding:.6rem 1.2rem 1rem;display:flex;gap:.5rem;justify-content:flex-end}
+.prop-color-bar{height:10px;border-radius:4px;margin-bottom:.8rem}
+.rent-table{width:100%;border-collapse:collapse;font-size:.8rem;margin:.5rem 0}
+.rent-table tr td{padding:.22rem .4rem}
+.rent-table tr:nth-child(even) td{background:var(--surface2)}
+.rent-table .val{text-align:right;font-family:'JetBrains Mono',monospace;color:var(--accent)}
+.rent-table .cur-row td{font-weight:700;color:var(--ink)}
+
+/* ── CARD DISPLAY ── */
+.card-display{border-radius:12px;padding:1rem;text-align:center;margin:.5rem 0;
+  background:linear-gradient(135deg,var(--surface2),var(--border))}
+.card-type{font-size:.7rem;font-weight:700;letter-spacing:.1em;margin-bottom:.5rem;text-transform:uppercase}
+.card-text{font-size:.9rem;line-height:1.5;white-space:pre-line}
+.card-amount{font-family:'JetBrains Mono',monospace;font-size:1.3rem;font-weight:800;
+  margin-top:.5rem;color:var(--accent)}
+
+/* ── BUILD LIST ── */
+.build-group{margin-bottom:.8rem}
+.build-group-title{font-size:.7rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin-bottom:.35rem}
+.build-item{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border-radius:8px;padding:.4rem .6rem;margin-bottom:.3rem}
+.build-item-name{font-size:.83rem;font-weight:600}
+.build-houses{display:flex;gap:3px;align-items:center}
+.h-dot{width:10px;height:10px;border-radius:2px}
+.h-dot.filled{background:#22c55e}
+.h-dot.hotel{background:#ef4444;border-radius:50%}
+.h-dot.empty{background:var(--border)}
+.build-cost{font-size:.72rem;color:var(--ink2)}
+.btn-build{padding:.28rem .6rem;border-radius:10px;font-size:.75rem;font-weight:700;
+  background:var(--accent);color:#1a1200;border:none}
+.btn-build:disabled{opacity:.35;pointer-events:none}
+
+/* ── WIN ── */
+.win-emoji{font-size:3rem;text-align:center;margin:.5rem 0}
+.win-rank-list{list-style:none;margin:.8rem 0}
+.win-rank-list li{display:flex;align-items:center;gap:.6rem;
+  padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.9rem}
+
+/* ── TOAST ── */
+#tbox{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  z-index:900;display:flex;flex-direction:column;align-items:center;gap:.35rem;pointer-events:none}
+.tt{padding:.4rem 1rem;border-radius:20px;font-size:.82rem;font-weight:600;
+  background:#222;color:#fff;white-space:nowrap;
+  box-shadow:0 2px 12px rgba(0,0,0,.5);animation:slideUp .25s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── PROPERTY POPUP ── */
+#propPopup{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  z-index:600;display:none;min-width:240px;max-width:92vw}
+#propPopup.on{display:block}
+.ppcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:.8rem 1rem;box-shadow:var(--sh-lg)}
+
+@media(max-width:360px){
+  .sh h1{font-size:1.7rem}
+  .btn{padding:.55rem 1rem;font-size:.8rem}
+  .mc{padding:.65rem .45rem}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="logo"><div class="li"><i></i><i></i><i></i><i></i></div>Classic Games</div>
+  <div style="display:flex;gap:.5rem;align-items:center">
+    <button class="auth-btn" id="authBtn" onclick="openAuthModal()" style="padding:.25rem .55rem;font-size:.78rem"></button>
+    <a class="bk" href="index.html">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M7 1.5L2.5 5L7 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back
+    </a>
+  </div>
+</header>
+
+<!-- SETUP -->
+<div id="setup">
+  <div class="sh"><h1>💼 <span>Business</span></h1><p>Buy cities · Build empires · Bankrupt rivals</p></div>
+  <div style="width:100%">
+    <p style="font-weight:700;margin-bottom:.5rem;font-size:.84rem">Choose Players</p>
+    <div class="mg">
+      <div class="mc s" id="m2" onclick="pick('2p',this)"><div class="mi">🤖</div><div class="ml">vs Bot</div><div class="md">1v1 quick game</div></div>
+      <div class="mc"   id="m3" onclick="pick('3p',this)"><div class="mi">👥</div><div class="ml">3 Players</div><div class="md">You + 2 Bots</div></div>
+      <div class="mc"   id="m4" onclick="pick('4p',this)"><div class="mi">👥👤</div><div class="ml">4 Players</div><div class="md">You + 3 Bots</div></div>
+    </div>
+  </div>
+  <button class="gb" onclick="startGame()">Start Game 💼</button>
+</div>
+
+<!-- GAME -->
+<div id="game">
+  <div id="boardWrap"><canvas id="cv"></canvas></div>
+
+  <!-- Info bar -->
+  <div class="ibar" id="ibar">
+    <div class="cur-player">
+      <div class="pdot" id="curDot"></div>
+      <div><div class="cur-name" id="curName">—</div><div class="phase-label" id="phaseLabel">—</div></div>
+    </div>
+    <div class="cur-money" id="curMoney">—</div>
+    <div class="dice-wrap">
+      <div class="pdice" id="die1"><div class="dp l" id="d1p0"></div><div class="dp l" id="d1p1"></div><div class="dp l" id="d1p2"></div><div class="dp l" id="d1p3"></div><div class="dp l" id="d1p4"></div><div class="dp l" id="d1p5"></div><div class="dp l" id="d1p6"></div><div class="dp l" id="d1p7"></div><div class="dp l" id="d1p8"></div></div>
+      <div class="pdice" id="die2"><div class="dp l" id="d2p0"></div><div class="dp l" id="d2p1"></div><div class="dp l" id="d2p2"></div><div class="dp l" id="d2p3"></div><div class="dp l" id="d2p4"></div><div class="dp l" id="d2p5"></div><div class="dp l" id="d2p6"></div><div class="dp l" id="d2p7"></div><div class="dp l" id="d2p8"></div></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="ctrl">
+    <button class="btn btn-primary" id="rollBtn" onclick="doRoll()">🎲 Roll Dice</button>
+    <button class="btn btn-sec"     id="buildBtn" onclick="openBuildModal()" style="display:none">🏠 Build</button>
+    <button class="btn btn-sec"     id="endBtn"   onclick="endTurn()" style="display:none">End Turn ▶</button>
+  </div>
+
+  <!-- Player cards -->
+  <div id="playerCards"></div>
+</div>
+
+<!-- BUY MODAL -->
+<div class="mover" id="buyModal">
+  <div class="mcard">
+    <div class="mhdr"><h3 id="buyTitle">Buy Property</h3></div>
+    <div class="mbody" id="buyBody"></div>
+    <div class="mfooter">
+      <button class="btn btn-sec" onclick="passBuy()">Pass</button>
+      <button class="btn btn-primary" onclick="confirmBuy()" id="buyConfirmBtn">Buy</button>
+    </div>
+  </div>
+</div>
+
+<!-- INFO MODAL (rent, card, tax) -->
+<div class="mover" id="infoModal">
+  <div class="mcard">
+    <div class="mhdr"><h3 id="infoTitle">Info</h3><div class="mclose" onclick="confirmInfo()">✕</div></div>
+    <div class="mbody" id="infoBody"></div>
+    <div class="mfooter"><button class="btn btn-primary" id="infoOkBtn" onclick="confirmInfo()">OK</button></div>
+  </div>
+</div>
+
+<!-- JAIL MODAL -->
+<div class="mover" id="jailModal">
+  <div class="mcard">
+    <div class="mhdr"><h3>⛓ In Jail</h3></div>
+    <div class="mbody" id="jailBody"></div>
+    <div class="mfooter" id="jailFooter"></div>
+  </div>
+</div>
+
+<!-- BUILD MODAL -->
+<div class="mover" id="buildModal">
+  <div class="mcard">
+    <div class="mhdr"><h3>🏠 Build Houses & Hotels</h3><div class="mclose" onclick="closeBuildModal()">✕</div></div>
+    <div class="mbody" id="buildBody"></div>
+    <div class="mfooter"><button class="btn btn-sec" onclick="closeBuildModal()">Done</button></div>
+  </div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="mover" id="winModal">
+  <div class="mcard">
+    <div class="mhdr" style="justify-content:center"><h3 style="font-size:1.3rem">Game Over!</h3></div>
+    <div class="mbody">
+      <div class="win-emoji" id="winEmoji">🏆</div>
+      <div id="winTitle" style="text-align:center;font-weight:800;font-size:1.1rem;margin-bottom:.5rem"></div>
+      <ul class="win-rank-list" id="winList"></ul>
+    </div>
+    <div class="mfooter">
+      <button class="btn btn-sec" onclick="goSetup()">Menu</button>
+      <button class="btn btn-primary" onclick="restartGame()">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROPERTY POPUP (info on tap) -->
+<div id="propPopup">
+  <div class="ppcard" id="ppInner"></div>
+</div>
+
+<div id="tbox"></div>
+
+<script src="common.js"></script>
+<script>
+"use strict";
+
+/* ═══════════════ CONSTANTS ═══════════════ */
+const STARTING_MONEY = 15000;
+const GO_SALARY = 2000;
+const JAIL_BAIL = 500;
+const JAIL_ID = 10;
+
+const SQUARES = [
+  {id:0,  name:'GO',            type:'go'        },
+  {id:1,  name:'Patna',         type:'property',  group:0, price:600,  rent:[20,100,300,900,1600,2500],   hc:500,  color:'#A0522D'},
+  {id:2,  name:'Community\nChest', type:'community'},
+  {id:3,  name:'Varanasi',      type:'property',  group:0, price:600,  rent:[40,200,600,1800,3200,4500],   hc:500,  color:'#A0522D'},
+  {id:4,  name:'Income Tax',    type:'tax',       amount:2000},
+  {id:5,  name:'N. Railway',    type:'railway',   price:2000},
+  {id:6,  name:'Agra',          type:'property',  group:1, price:1000, rent:[60,300,900,2700,4000,5500],   hc:1000, color:'#4FC3F7'},
+  {id:7,  name:'Chance',        type:'chance'},
+  {id:8,  name:'Jaipur',        type:'property',  group:1, price:1000, rent:[60,300,900,2700,4000,5500],   hc:1000, color:'#4FC3F7'},
+  {id:9,  name:'Udaipur',       type:'property',  group:1, price:1200, rent:[80,400,1000,3000,4500,6000],  hc:1000, color:'#4FC3F7'},
+  {id:10, name:'Jail',          type:'jail'      },
+  {id:11, name:'Pune',          type:'property',  group:2, price:1400, rent:[100,500,1500,4500,6250,7500],  hc:1500, color:'#E91E63'},
+  {id:12, name:'Electric Co.', type:'utility',   price:1500},
+  {id:13, name:'Nashik',        type:'property',  group:2, price:1400, rent:[100,500,1500,4500,6250,7500],  hc:1500, color:'#E91E63'},
+  {id:14, name:'Aurangabad',    type:'property',  group:2, price:1600, rent:[120,600,1800,5000,7000,9000],  hc:1500, color:'#E91E63'},
+  {id:15, name:'W. Railway',    type:'railway',   price:2000},
+  {id:16, name:'Hyderabad',     type:'property',  group:3, price:1800, rent:[140,700,2000,5500,7500,9500],  hc:2000, color:'#FF9800'},
+  {id:17, name:'Community\nChest', type:'community'},
+  {id:18, name:'Vijayawada',    type:'property',  group:3, price:1800, rent:[140,700,2000,5500,7500,9500],  hc:2000, color:'#FF9800'},
+  {id:19, name:'Vizag',         type:'property',  group:3, price:2000, rent:[160,800,2200,6000,8000,10000], hc:2000, color:'#FF9800'},
+  {id:20, name:'Free Parking',  type:'freeparking'},
+  {id:21, name:'Chennai',       type:'property',  group:4, price:2000, rent:[180,900,2500,7000,8750,10500], hc:2000, color:'#F44336'},
+  {id:22, name:'Chance',        type:'chance'},
+  {id:23, name:'Coimbatore',    type:'property',  group:4, price:2200, rent:[180,900,2500,7000,8750,10500], hc:2000, color:'#F44336'},
+  {id:24, name:'Madurai',       type:'property',  group:4, price:2200, rent:[200,1000,3000,7500,9250,11000],hc:2000, color:'#F44336'},
+  {id:25, name:'E. Railway',    type:'railway',   price:2000},
+  {id:26, name:'Bengaluru',     type:'property',  group:5, price:2200, rent:[220,1100,3300,8000,9750,11500],hc:2500, color:'#FDD835'},
+  {id:27, name:'Mysuru',        type:'property',  group:5, price:2400, rent:[220,1100,3300,8000,9750,11500],hc:2500, color:'#FDD835'},
+  {id:28, name:'Water Works',   type:'utility',   price:1500},
+  {id:29, name:'Mangaluru',     type:'property',  group:5, price:2400, rent:[240,1200,3600,8500,10250,12000],hc:2500,color:'#FDD835'},
+  {id:30, name:'Go to Jail',    type:'gotojail'},
+  {id:31, name:'Delhi',         type:'property',  group:6, price:2600, rent:[260,1300,3900,9000,11000,12750],hc:3000,color:'#4CAF50'},
+  {id:32, name:'Noida',         type:'property',  group:6, price:2600, rent:[260,1300,3900,9000,11000,12750],hc:3000,color:'#4CAF50'},
+  {id:33, name:'Chance',        type:'chance'},
+  {id:34, name:'Gurgaon',       type:'property',  group:6, price:2800, rent:[300,1500,4500,10000,12000,14000],hc:3000,color:'#4CAF50'},
+  {id:35, name:'S. Railway',    type:'railway',   price:2000},
+  {id:36, name:'Community\nChest', type:'community'},
+  {id:37, name:'Mumbai',        type:'property',  group:7, price:3500, rent:[350,1750,5000,11000,13000,15000],hc:3500,color:'#1565C0'},
+  {id:38, name:'Luxury Tax',    type:'tax',       amount:750},
+  {id:39, name:'Kolkata',       type:'property',  group:7, price:4000, rent:[500,2000,6000,14000,17000,20000],hc:3500,color:'#1565C0'},
+];
+
+const PROP_GROUPS = {
+  0:[1,3], 1:[6,8,9], 2:[11,13,14], 3:[16,18,19],
+  4:[21,23,24], 5:[26,27,29], 6:[31,32,34], 7:[37,39]
+};
+const RAIL_IDS = [5,15,25,35];
+const UTIL_IDS = [12,28];
+
+const COLORS = ['#ef4444','#3b82f6','#22c55e','#eab308'];
+const COLOR_DARK = ['#b91c1c','#1d4ed8','#15803d','#a16207'];
+
+const COMM_DECK = [
+  {text:'Bank error in your favor!\nCollect ₹2,000',        action:'gain',         amount:2000},
+  {text:"Doctor's fees.\nPay ₹500",                        action:'pay',          amount:500},
+  {text:'Advance to GO!\nCollect ₹2,000 salary',           action:'goto',         target:0},
+  {text:'Grand Opera Night!\nCollect ₹500 from each player',action:'collect_each', amount:500},
+  {text:'Holiday fund matures.\nReceive ₹1,000',            action:'gain',         amount:1000},
+  {text:'Income tax refund.\nReceive ₹200',                 action:'gain',         amount:200},
+  {text:"It's your birthday!\nCollect ₹100 from each",     action:'collect_each', amount:100},
+  {text:'Life insurance matures.\nReceive ₹1,000',          action:'gain',         amount:1000},
+  {text:'Pay hospital fees.\nPay ₹500',                     action:'pay',          amount:500},
+  {text:'Pay school fees.\nPay ₹1,500',                     action:'pay',          amount:1500},
+  {text:'Consultancy fee received.\nCollect ₹250',           action:'gain',         amount:250},
+  {text:'Won second prize in\na beauty contest!\nReceive ₹100', action:'gain',    amount:100},
+  {text:'🃏 Get Out of Jail Free!',                         action:'jailcard'},
+  {text:'Go to Jail!\nDo not pass GO.',                     action:'jail'},
+  {text:'Lottery win!\nCollect ₹5,000',                     action:'gain',         amount:5000},
+  {text:'Diwali bonus from employer!\nCollect ₹1,500',       action:'gain',         amount:1500},
+];
+
+const CHNC_DECK = [
+  {text:'Advance to GO!\nCollect ₹2,000 salary',             action:'goto',         target:0},
+  {text:'Advance to Mumbai.\nIf you pass GO, collect ₹2,000',action:'goto',         target:37},
+  {text:'Advance to Northern Railway.\nIf you pass GO, collect ₹2,000', action:'goto', target:5},
+  {text:'Bank pays dividend.\nReceive ₹500',                 action:'gain',         amount:500},
+  {text:'🃏 Get Out of Jail Free!',                         action:'jailcard'},
+  {text:'Go back 3 spaces',                                  action:'back',         amount:3},
+  {text:'Go to Jail!\nDo not pass GO.',                      action:'jail'},
+  {text:'Pay poor tax.\nPay ₹150',                          action:'pay',          amount:150},
+  {text:'Trip to Shimla!\nAdvance to Bengaluru',             action:'goto',         target:26},
+  {text:'Building loan matures.\nReceive ₹1,500',            action:'gain',         amount:1500},
+  {text:'Pay each player ₹500',                              action:'pay_each',     amount:500},
+  {text:'Speeding fine.\nPay ₹200',                         action:'pay',          amount:200},
+  {text:'Services rendered.\nCollect ₹300 from each player', action:'collect_each', amount:300},
+  {text:'Advance to nearest Railway.\nIf unowned, you may buy it.',action:'nearest_rail'},
+  {text:'Advance to Kolkata.\nIf you pass GO, collect ₹2,000',action:'goto',        target:39},
+  {text:'Festival bonus!\nCollect ₹2,500',                   action:'gain',         amount:2500},
+];
+
+const DPAT = {0:[],1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+const GROUP_NAMES = ['Brown','Light Blue','Pink','Orange','Red','Yellow','Green','Dark Blue'];
+
+/* ═══════════════ STATE ═══════════════ */
+let MODE = '2p';
+let G = null;
+let cv, ctx, DPR = 1, BS = 360, CORNER = 52, CW = 29;
+let RAF = null;
+let _pendingBuyId = null, _pendingInfoCb = null;
+let _commDeck = [], _chncDeck = [];
+let _diceAnim = null;
+
+/* ═══════════════ SETUP ═══════════════ */
+function pick(m, el) {
+  MODE = m;
+  document.querySelectorAll('.mc').forEach(e => e.classList.remove('s'));
+  el.classList.add('s');
+}
+
+function startGame() {
+  const counts = {'2p':2,'3p':3,'4p':4};
+  const n = counts[MODE] || 2;
+  G = {
+    players: Array.from({length:n}, (_,i) => ({
+      name: i===0 ? 'You' : 'Bot '+(i+1),
+      money: STARTING_MONEY,
+      position: 0,
+      inJail: false,
+      jailTurns: 0,
+      jailCards: 0,
+      bot: i > 0,
+      bankrupt: false,
+    })),
+    owned: {},       // squareId → {owner: idx, houses: 0-5}
+    cur: 0,
+    phase: 'roll',   // 'roll' | 'action' | 'done' | 'gameover'
+    dice: [0,0],
+    lastDice: 0,
+    doubles: 0,
+    extraRoll: false,
+    rolled: false,
+    freePot: 0,
+    over: false,
+  };
+  _commDeck = shuffle([...COMM_DECK]);
+  _chncDeck = shuffle([...CHNC_DECK]);
+
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('game').classList.add('on');
+
+  cv = document.getElementById('cv');
+  ctx = cv.getContext('2d');
+  resize();
+  updateUI();
+
+  if (RAF) cancelAnimationFrame(RAF);
+  (function loop() { render(); RAF = requestAnimationFrame(loop); })();
+
+  cv.addEventListener('click', boardClick);
+
+  if (G.players[0].bot) setTimeout(botTurn, 800);
+}
+
+/* ═══════════════ UTILS ═══════════════ */
+function ltn(hex, d) {
+  if (!hex || hex[0] !== '#') return hex || '#888';
+  return '#' + [1,3,5].map(i =>
+    Math.min(255, Math.max(0, parseInt(hex.slice(i,i+2),16)+d))
+    .toString(16).padStart(2,'0')).join('');
+}
+function fm(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+function wrapText(ctx2, text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur+' '+w : w;
+    if (ctx2.measureText(t).width <= maxW) cur = t;
+    else { if (cur) lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/* ═══════════════ BOARD SIZING ═══════════════ */
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  const maxW = Math.min(window.innerWidth - 8, window.innerHeight - 250, 480);
+  CORNER = Math.floor(maxW / 6.8);
+  CW = Math.floor((maxW - 2*CORNER) / 9);
+  BS = CORNER * 2 + CW * 9;
+  cv.width  = Math.round(BS * DPR);
+  cv.height = Math.round(BS * DPR);
+  cv.style.width  = BS + 'px';
+  cv.style.height = BS + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  document.getElementById('boardWrap').style.width = BS + 'px';
+}
+window.addEventListener('resize', () => {
+  if (cv && document.getElementById('game').classList.contains('on')) {
+    resize();
+  }
+});
+
+/* ═══════════════ BOARD GEOMETRY ═══════════════ */
+function getRect(id) {
+  const B=BS, C=CORNER, cw=CW;
+  if (id===0)  return {x:B-C, y:B-C, w:C, h:C, side:'go'};
+  if (id===10) return {x:0,   y:B-C, w:C, h:C, side:'jail'};
+  if (id===20) return {x:0,   y:0,   w:C, h:C, side:'fp'};
+  if (id===30) return {x:B-C, y:0,   w:C, h:C, side:'gtj'};
+  if (id>=1  && id<=9)  return {x:B-C-id*cw,   y:B-C, w:cw, h:C,  side:'bottom'};
+  if (id>=11 && id<=19) return {x:0, y:B-C-(id-10)*cw,  w:C,  h:cw, side:'left'};
+  if (id>=21 && id<=29) return {x:C+(id-21)*cw, y:0,   w:cw, h:C,  side:'top'};
+  if (id>=31 && id<=39) return {x:B-C, y:C+(id-31)*cw,  w:C,  h:cw, side:'right'};
+  return null;
+}
+function cellCenter(id) {
+  const r = getRect(id);
+  return r ? {x: r.x+r.w/2, y: r.y+r.h/2} : {x:0,y:0};
+}
+
+/* ═══════════════ RENDERING ═══════════════ */
+function render() {
+  if (!ctx) return;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawBoard();
+}
+
+function drawBoard() {
+  // Board background
+  ctx.fillStyle = '#1a0e05';
+  ctx.fillRect(0,0,BS,BS);
+
+  // Draw all 40 cells
+  for (let id = 0; id < 40; id++) drawCell(id);
+
+  // Center
+  drawCenter();
+
+  // Ownership outlines + houses (drawn on top)
+  for (let id = 0; id < 40; id++) drawOwnership(id);
+  for (let id = 0; id < 40; id++) drawHouses(id);
+
+  // Player tokens
+  drawTokens();
+}
+
+function drawCell(id) {
+  const sq = SQUARES[id];
+  const r = getRect(id);
+  if (!r) return;
+  const {x,y,w,h,side} = r;
+  const isCorner = ['go','jail','fp','gtj'].includes(side);
+
+  // Background
+  const bgMap = {
+    property:'#FFFDE7', railway:'#E3F2FD', utility:'#F3E5F5',
+    community:'#E8F5E9', chance:'#FFF9C4', tax:'#FFEBEE',
+    go:'#FFF3E0', jail:'#ECEFF1', freeparking:'#F1F8E9', gotojail:'#FFEBEE',
+  };
+  ctx.fillStyle = bgMap[sq.type] || '#FFFDE7';
+  ctx.fillRect(x,y,w,h);
+
+  if (isCorner) {
+    drawCorner(ctx, id, r);
+  } else {
+    // Color strip
+    const STRIP = 14;
+    if (sq.type === 'property') {
+      let sg;
+      if (side==='bottom') sg=ctx.createLinearGradient(x,y+h-STRIP,x,y+h);
+      else if (side==='top') sg=ctx.createLinearGradient(x,y,x,y+STRIP);
+      else if (side==='left') sg=ctx.createLinearGradient(x,y,x+STRIP,y);
+      else sg=ctx.createLinearGradient(x+w-STRIP,y,x+w,y);
+      sg.addColorStop(0,ltn(sq.color,35));
+      sg.addColorStop(0.5,sq.color);
+      sg.addColorStop(1,ltn(sq.color,-20));
+      ctx.fillStyle=sg;
+      if (side==='bottom') ctx.fillRect(x,y+h-STRIP,w,STRIP);
+      else if (side==='top') ctx.fillRect(x,y,w,STRIP);
+      else if (side==='left') ctx.fillRect(x,y,STRIP,h);
+      else ctx.fillRect(x+w-STRIP,y,STRIP,h);
+    }
+    drawCellText(sq, x, y, w, h, side);
+  }
+
+  // Cell border
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(x+0.25,y+0.25,w-0.5,h-0.5);
+}
+
+function drawCellText(sq, x, y, w, h, side) {
+  ctx.save();
+  ctx.translate(x+w/2, y+h/2);
+  const angles = {bottom:-Math.PI/2, left:0, top:Math.PI/2, right:Math.PI};
+  ctx.rotate(angles[side]||0);
+  // After rotation: longE=horizontal, shortE=vertical
+  const longE = (side==='bottom'||side==='top') ? h : w;
+  const shortE = (side==='bottom'||side==='top') ? w : h;
+  const STRIP = sq.type==='property' ? 14 : 0;
+  const textX = -longE/2 + STRIP; // left edge of text area
+  const availW = longE - STRIP;
+  const halfS = shortE/2;
+
+  // Icon
+  let icon='';
+  if (sq.type==='community') icon='📦';
+  else if (sq.type==='chance') icon='⚡';
+  else if (sq.type==='railway') icon='🚂';
+  else if (sq.type==='utility' && sq.name.includes('Electric')) icon='⚡';
+  else if (sq.type==='utility') icon='💧';
+  else if (sq.type==='tax') icon='₹';
+
+  const iconSz = Math.min(14, shortE*0.42);
+  if (icon) {
+    ctx.font=`${iconSz}px serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#444';
+    ctx.fillText(icon, textX+availW/2, -halfS*0.28);
+  }
+
+  // Name
+  const nameSz = Math.max(4.5, Math.min(7, shortE*0.23));
+  ctx.font=`bold ${nameSz}px 'Syne',sans-serif`;
+  ctx.fillStyle='#1a1000';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  const nameStr = sq.name.replace('\n',' ');
+  const nameLines = wrapText(ctx, nameStr, availW-2);
+  const lh = nameSz+1.5;
+  const nameH = nameLines.length*lh;
+  const nameStartY = icon ? 0 : -nameH/2 + lh/2 - halfS*0.1;
+  nameLines.forEach((ln,i) => {
+    ctx.fillText(ln, textX+availW/2, nameStartY + i*lh);
+  });
+
+  // Price
+  if (sq.price) {
+    const pSz = Math.max(4, nameSz-1.5);
+    ctx.font=`${pSz}px 'JetBrains Mono',monospace`;
+    ctx.fillStyle='#7B5500';
+    ctx.textBaseline='bottom';
+    ctx.fillText(fm(sq.price), textX+availW/2, halfS-1);
+  }
+  if (sq.type==='tax') {
+    const pSz = Math.max(4, nameSz-1);
+    ctx.font=`${pSz}px 'JetBrains Mono',monospace`;
+    ctx.fillStyle='#B00020';
+    ctx.textBaseline='bottom';
+    ctx.fillText(fm(sq.amount), textX+availW/2, halfS-1);
+  }
+
+  ctx.restore();
+}
+
+function drawCorner(ct, id, r) {
+  const {x,y,w,h} = r;
+  const cx=x+w/2, cy=y+h/2;
+  const sz = Math.min(w,h);
+
+  ct.save();
+  if (id===0) { // GO
+    // Red accent strip
+    ct.fillStyle='#c62828';
+    ct.fillRect(x,y,5,h);
+    ct.fillStyle='#b71c1c';
+    ct.font=`bold ${sz*0.28}px 'Syne',sans-serif`;
+    ct.textAlign='center'; ct.textBaseline='middle';
+    ct.fillText('GO', cx+3, cy-sz*0.06);
+    ct.fillStyle='#555';
+    ct.font=`${sz*0.1}px 'Syne',sans-serif`;
+    ct.textBaseline='top';
+    ct.fillText('COLLECT', cx+3, y+4);
+    ct.fillText(fm(GO_SALARY), cx+3, y+4+sz*0.11);
+    ct.fillText('SALARY', cx+3, y+4+sz*0.22);
+    // Arrow
+    ct.fillStyle='#c62828';
+    ct.font=`${sz*0.22}px serif`;
+    ct.textBaseline='bottom';
+    ct.fillText('→', cx+3, y+h-4);
+  } else if (id===10) { // JAIL
+    // Divider diagonal
+    ct.strokeStyle='rgba(0,0,0,0.15)';
+    ct.lineWidth=1;
+    ct.beginPath(); ct.moveTo(x,y); ct.lineTo(x+w,y+h); ct.stroke();
+    ct.fillStyle='#b71c1c';
+    ct.font=`bold ${sz*0.13}px 'Syne',sans-serif`;
+    ct.textAlign='center'; ct.textBaseline='middle';
+    ct.fillText('JAIL', x+w*0.68, y+h*0.72);
+    // Bars (3 lines)
+    ct.strokeStyle='#333';
+    ct.lineWidth=1.5;
+    for(let b=0;b<3;b++){
+      const bx=x+w*0.54+b*(w*0.1);
+      ct.beginPath(); ct.moveTo(bx,y+h*0.55); ct.lineTo(bx,y+h*0.9); ct.stroke();
+    }
+    // Just visiting text
+    ct.fillStyle='#333';
+    ct.font=`bold ${sz*0.1}px 'Syne',sans-serif`;
+    ct.textAlign='left';
+    // Rotated left
+    ct.save();
+    ct.translate(x+sz*0.14, cy);
+    ct.rotate(-Math.PI/2);
+    ct.textAlign='center'; ct.textBaseline='middle';
+    ct.fillText('JUST VISITING', 0, 0);
+    ct.restore();
+  } else if (id===20) { // FREE PARKING
+    ct.fillStyle='#2e7d32';
+    ct.font=`bold ${sz*0.13}px 'Syne',sans-serif`;
+    ct.textAlign='center'; ct.textBaseline='top';
+    ct.fillText('FREE', cx, y+6);
+    ct.fillText('PARKING', cx, y+6+sz*0.14);
+    ct.font=`${sz*0.32}px serif`;
+    ct.textBaseline='middle';
+    ct.fillStyle='#1b5e20';
+    ct.fillText('🅿️', cx, cy+sz*0.06);
+  } else if (id===30) { // GO TO JAIL
+    ct.fillStyle='#b71c1c';
+    ct.font=`bold ${sz*0.13}px 'Syne',sans-serif`;
+    ct.textAlign='center'; ct.textBaseline='top';
+    ct.fillText('GO TO', cx, y+5);
+    ct.fillText('JAIL!', cx, y+5+sz*0.14);
+    ct.font=`${sz*0.28}px serif`;
+    ct.textBaseline='middle';
+    ct.fillText('⛓️', cx, cy+sz*0.05);
+    ct.fillStyle='#b71c1c';
+    ct.font=`${sz*0.1}px 'Syne',sans-serif`;
+    ct.textBaseline='bottom';
+    ct.fillText('→ to jail', cx, y+h-4);
+  }
+  ct.restore();
+}
+
+function drawCenter() {
+  const x=CORNER, y=CORNER, w=BS-2*CORNER, h=BS-2*CORNER;
+  // Rich green felt
+  const gr = ctx.createRadialGradient(x+w/2,y+h/2,0,x+w/2,y+h/2,w*0.7);
+  gr.addColorStop(0,'#1b5e20');
+  gr.addColorStop(1,'#0a2e0e');
+  ctx.fillStyle=gr;
+  ctx.fillRect(x,y,w,h);
+  // Gold border
+  ctx.strokeStyle='#c9a84c';
+  ctx.lineWidth=2;
+  ctx.strokeRect(x+4,y+4,w-8,h-8);
+  ctx.lineWidth=0.8;
+  ctx.strokeRect(x+7,y+7,w-14,h-14);
+  // Title
+  ctx.save();
+  ctx.font=`800 ${Math.min(w*0.12,28)}px 'Syne',sans-serif`;
+  ctx.fillStyle='#c9a84c';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('BUSINESS', x+w/2, y+h/2-w*0.07);
+  ctx.font=`600 ${Math.min(w*0.055,13)}px 'Syne',sans-serif`;
+  ctx.fillStyle='#a5d6a7';
+  ctx.fillText('PROPERTY TRADING GAME', x+w/2, y+h/2+w*0.055);
+  // Rupee symbol
+  ctx.font=`800 ${Math.min(w*0.09,22)}px 'JetBrains Mono',monospace`;
+  ctx.fillStyle='rgba(201,168,76,0.3)';
+  ctx.fillText('₹', x+w/2, y+h/2+w*0.17);
+  ctx.restore();
+}
+
+function drawOwnership(id) {
+  if (!G) return;
+  const o = G.owned[id];
+  if (!o) return;
+  const r = getRect(id);
+  if (!r) return;
+  ctx.strokeStyle = COLORS[o.owner];
+  ctx.lineWidth = 2.2;
+  ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+}
+
+function drawHouses(id) {
+  if (!G) return;
+  const o = G.owned[id];
+  if (!o || !o.houses) return;
+  const r = getRect(id);
+  if (!r || ['go','jail','fp','gtj'].includes(r.side)) return;
+  const {x,y,w,h,side} = r;
+  const STRIP = 14;
+  const houses = o.houses;
+
+  if (houses <= 4) {
+    ctx.fillStyle='#22c55e';
+    ctx.strokeStyle='#14532d';
+    ctx.lineWidth=0.5;
+    for (let i=0; i<houses; i++) {
+      const hs=5, margin=2;
+      let hx,hy;
+      if (side==='bottom')      {hx=x+margin+(i*(w-2*margin)/houses)+((w-2*margin)/houses-hs)/2; hy=y+h-STRIP+(STRIP-hs)/2;}
+      else if(side==='top')     {hx=x+margin+(i*(w-2*margin)/houses)+((w-2*margin)/houses-hs)/2; hy=y+(STRIP-hs)/2;}
+      else if(side==='left')    {hx=x+(STRIP-hs)/2; hy=y+margin+(i*(h-2*margin)/houses)+((h-2*margin)/houses-hs)/2;}
+      else                      {hx=x+w-STRIP+(STRIP-hs)/2; hy=y+margin+(i*(h-2*margin)/houses)+((h-2*margin)/houses-hs)/2;}
+      ctx.fillRect(hx,hy,hs,hs);
+      ctx.strokeRect(hx,hy,hs,hs);
+    }
+  } else { // hotel
+    ctx.fillStyle='#ef4444';
+    ctx.strokeStyle='#7f1d1d';
+    ctx.lineWidth=0.5;
+    let hx,hy,hw,hh;
+    if (side==='bottom')     {hw=w*0.6;hh=STRIP*0.65;hx=x+(w-hw)/2;hy=y+h-STRIP+(STRIP-hh)/2;}
+    else if(side==='top')    {hw=w*0.6;hh=STRIP*0.65;hx=x+(w-hw)/2;hy=y+(STRIP-hh)/2;}
+    else if(side==='left')   {hw=STRIP*0.65;hh=h*0.6;hx=x+(STRIP-hw)/2;hy=y+(h-hh)/2;}
+    else                     {hw=STRIP*0.65;hh=h*0.6;hx=x+w-STRIP+(STRIP-hw)/2;hy=y+(h-hh)/2;}
+    ctx.fillRect(hx,hy,hw,hh);
+    ctx.strokeRect(hx,hy,hw,hh);
+  }
+}
+
+function drawTokens() {
+  if (!G) return;
+  const byPos = {};
+  G.players.forEach((pl,pi) => {
+    if (pl.bankrupt) return;
+    if (!byPos[pl.position]) byPos[pl.position] = [];
+    byPos[pl.position].push(pi);
+  });
+  const offsets = [[[0,0]],[[-7,0],[7,0]],[[-7,-5],[7,-5],[0,7]],[[-6,-5],[6,-5],[-6,5],[6,5]]];
+  Object.entries(byPos).forEach(([pos,pis]) => {
+    const c = cellCenter(parseInt(pos));
+    const os = offsets[Math.min(pis.length-1,3)];
+    pis.forEach((pi,j) => {
+      const [ox,oy] = os[j];
+      drawToken(c.x+ox, c.y+oy, pi);
+    });
+  });
+}
+
+function drawToken(px, py, pi) {
+  const r=7, col=COLORS[pi], dark=COLOR_DARK[pi];
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(px+1,py+2.5,r*0.82,r*0.38,0,0,Math.PI*2);
+  ctx.fill();
+  // Gradient body
+  const g=ctx.createRadialGradient(px-r*.25,py-r*.28,r*.04,px,py,r);
+  g.addColorStop(0,ltn(col,55));
+  g.addColorStop(0.55,col);
+  g.addColorStop(1,dark);
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+  // Rim
+  ctx.strokeStyle=dark; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.stroke();
+  // Shine
+  ctx.fillStyle='rgba(255,255,255,0.28)';
+  ctx.beginPath(); ctx.ellipse(px-r*0.22,py-r*0.32,r*0.35,r*0.22,Math.PI/4,0,Math.PI*2); ctx.fill();
+  // Number
+  ctx.fillStyle='#fff';
+  ctx.font=`bold 7px 'Syne',sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(String(pi+1), px, py+0.5);
+}
+
+/* ═══════════════ DICE ANIMATION ═══════════════ */
+function setDie(d, val) {
+  const on = DPAT[val]||[];
+  for (let i=0;i<9;i++) {
+    const el = document.getElementById(`d${d}p${i}`);
+    if (el) el.className='dp'+(on.includes(i)?' h':' l');
+  }
+}
+function animDice(final1, final2) {
+  clearInterval(_diceAnim);
+  const d1=document.getElementById('die1'),d2=document.getElementById('die2');
+  d1.classList.add('rolling'); d2.classList.add('rolling');
+  let count=0;
+  _diceAnim=setInterval(()=>{
+    setDie(1,1+Math.floor(Math.random()*6));
+    setDie(2,1+Math.floor(Math.random()*6));
+    if(++count>6){
+      clearInterval(_diceAnim);
+      d1.classList.remove('rolling'); d2.classList.remove('rolling');
+      setDie(1,final1); setDie(2,final2);
+    }
+  },80);
+}
+
+/* ═══════════════ GAME LOGIC ═══════════════ */
+function doRoll() {
+  if (!G || G.over || G.rolled) return;
+  const pl = G.players[G.cur];
+  if (pl.bankrupt) { nextPlayer(); return; }
+  if (pl.inJail && !pl.bot) { openJailModal(); return; }
+  if (pl.inJail && pl.bot) { botJailAction(); return; }
+  execRoll();
+}
+
+function execRoll() {
+  const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
+  G.dice=[d1,d2]; G.lastDice=d1+d2; G.rolled=true;
+  animDice(d1,d2);
+  updateUI();
+  setTimeout(()=>afterRoll(d1,d2), 720);
+}
+
+function afterRoll(d1,d2) {
+  const pl = G.players[G.cur];
+  if (pl.inJail) {
+    if (d1===d2) {
+      pl.inJail=false; pl.jailTurns=0;
+      toast(`${pl.name} rolled doubles — out of jail! 🎉`,'#22c55e');
+      G.extraRoll=false;
+      movePlayer(G.cur, d1+d2);
+    } else {
+      pl.jailTurns++;
+      if (pl.jailTurns>=3) {
+        pay(G.cur,-1,JAIL_BAIL);
+        pl.inJail=false; pl.jailTurns=0;
+        toast(`${pl.name} paid ₹${JAIL_BAIL} bail`,'#f59e0b');
+        movePlayer(G.cur, d1+d2);
+      } else {
+        toast(`${pl.name} stays in jail (turn ${pl.jailTurns}/3)`,'#6b7280');
+        resolveAction();
+      }
+    }
+    return;
+  }
+  const doubles = d1===d2;
+  if (doubles) {
+    G.doubles++;
+    if (G.doubles>=3) {
+      toast(`${G.players[G.cur].name} rolled 3 doubles — jail!`,'#ef4444');
+      G.doubles=0; G.extraRoll=false;
+      goToJail(G.cur); resolveAction(); return;
+    }
+    G.extraRoll=true;
+  } else {
+    G.doubles=0; G.extraRoll=false;
+  }
+  movePlayer(G.cur, d1+d2);
+}
+
+function movePlayer(pi, steps) {
+  const pl = G.players[pi];
+  const prev = pl.position;
+  pl.position = (prev+steps) % 40;
+  // Passed GO?
+  if (pl.position < prev || (prev+steps)>=40) {
+    if (SQUARES[pl.position].type !== 'gotojail') {
+      collect(pi, GO_SALARY);
+      toast(`${pl.name} passed GO — collect ${fm(GO_SALARY)} 💰`,'#22c55e');
+    }
+  }
+  landOn(pi, pl.position);
+}
+
+function landOn(pi, id) {
+  const sq=SQUARES[id], pl=G.players[pi];
+  switch(sq.type) {
+    case 'go':
+      if (id===0 && pl.position===0) {
+        collect(pi,GO_SALARY);
+        toast(`${pl.name} landed on GO — collect ${fm(GO_SALARY)} 💰`,'#22c55e');
+      }
+      resolveAction(); break;
+    case 'property': case 'railway': case 'utility':
+      const owned=G.owned[id];
+      if (!owned) {
+        if (pl.bot) {
+          if (pl.money>=sq.price) { buy(pi,id); resolveAction(); }
+          else resolveAction();
+        } else {
+          showBuyModal(id);
+        }
+      } else if (owned.owner===pi || G.players[owned.owner]?.bankrupt) {
+        resolveAction();
+      } else {
+        const rent=calcRent(id,G.lastDice);
+        if (pl.bot) {
+          pay(pi,owned.owner,rent);
+          toast(`${pl.name} pays ${fm(rent)} rent to ${G.players[owned.owner].name}`,'#ef4444');
+          resolveAction();
+        } else {
+          showRentModal(pi,rent,owned.owner,id);
+        }
+      }
+      break;
+    case 'community':
+      const cc=drawCard('comm');
+      showCardModal(cc,()=>applyCard(pi,cc));
+      break;
+    case 'chance':
+      const chnc=drawCard('chnc');
+      showCardModal(chnc,()=>applyCard(pi,chnc));
+      break;
+    case 'tax':
+      const taxAmt=sq.amount;
+      pay(pi,-1,taxAmt);
+      toast(`${pl.name} pays ${fm(taxAmt)} tax 💸`,'#ef4444');
+      if (!G.players[pi].bankrupt) resolveAction();
+      break;
+    case 'gotojail':
+      goToJail(pi); resolveAction(); break;
+    case 'freeparking':
+      if (G.freePot>0) {
+        collect(pi,G.freePot);
+        toast(`${pl.name} collects ${fm(G.freePot)} from Free Parking! 🎉`,'#22c55e');
+        G.freePot=0;
+      }
+      resolveAction(); break;
+    default:
+      resolveAction(); break;
+  }
+}
+
+function resolveAction() {
+  if (!G || G.over) return;
+  if (checkWin()) return;
+  updatePlayerCards();
+  const pl=G.players[G.cur];
+  if (pl.bankrupt) { nextPlayer(); return; }
+  if (pl.bot) {
+    botBuild();
+    setTimeout(()=>endTurn(), 600);
+  } else {
+    G.phase='done';
+    updateUI();
+  }
+}
+
+function endTurn() {
+  if (!G||G.over) return;
+  if (G.extraRoll && !G.players[G.cur].inJail && !G.players[G.cur].bankrupt) {
+    G.extraRoll=false; G.rolled=false; G.phase='roll';
+    toast(`${G.players[G.cur].name} rolled doubles — extra turn! 🎲`,'#a78bfa');
+    updateUI();
+    if (G.players[G.cur].bot) setTimeout(botTurn,900);
+    return;
+  }
+  nextPlayer();
+}
+
+function nextPlayer() {
+  let next=(G.cur+1)%G.players.length;
+  let tries=0;
+  while(G.players[next].bankrupt && tries<G.players.length) {next=(next+1)%G.players.length;tries++;}
+  G.cur=next; G.rolled=false; G.extraRoll=false; G.doubles=0; G.phase='roll';
+  updateUI();
+  if (G.players[G.cur].bot) setTimeout(botTurn,1100);
+}
+
+/* ═══════════════ PROPERTY ═══════════════ */
+function buy(pi, id) {
+  const sq=SQUARES[id];
+  G.players[pi].money-=sq.price;
+  G.owned[id]={owner:pi, houses:0};
+  toast(`${G.players[pi].name} bought ${sq.name.replace('\n',' ')} for ${fm(sq.price)} 🏙️`,'#22c55e');
+}
+
+function calcRent(id, diceTotal) {
+  const sq=SQUARES[id], o=G.owned[id];
+  if (!o) return 0;
+  if (sq.type==='property') {
+    const h=o.houses||0;
+    if (h===0) return ownsAllGroup(o.owner,sq.group) ? sq.rent[0]*2 : sq.rent[0];
+    return sq.rent[Math.min(h,5)];
+  }
+  if (sq.type==='railway') return [0,500,1000,2000,4000][railCount(o.owner)];
+  if (sq.type==='utility')  return (utilCount(o.owner)===1?40:100)*diceTotal;
+  return 0;
+}
+
+function ownsAllGroup(pi,group) {
+  return (PROP_GROUPS[group]||[]).every(id=>G.owned[id]?.owner===pi);
+}
+function railCount(pi) { return RAIL_IDS.filter(id=>G.owned[id]?.owner===pi).length; }
+function utilCount(pi) { return UTIL_IDS.filter(id=>G.owned[id]?.owner===pi).length; }
+
+function canBuildOn(pi,id) {
+  const sq=SQUARES[id];
+  if (sq.type!=='property') return false;
+  if (!ownsAllGroup(pi,sq.group)) return false;
+  const cur=G.owned[id]?.houses||0;
+  if (cur>=5) return false;
+  const minH=Math.min(...(PROP_GROUPS[sq.group]||[]).map(sid=>G.owned[sid]?.houses||0));
+  if (cur>minH) return false; // Even building
+  return G.players[pi].money>=sq.hc;
+}
+
+function buildHouse(pi, id) {
+  const sq=SQUARES[id];
+  G.players[pi].money-=sq.hc;
+  G.owned[id].houses=(G.owned[id].houses||0)+1;
+  const h=G.owned[id].houses;
+  toast(`${G.players[pi].name} built ${h===5?'a Hotel 🏨':'a House 🏠'} on ${sq.name.replace('\n',' ')}`,'#a78bfa');
+  updatePlayerCards();
+  updateBuildModal();
+}
+
+/* ═══════════════ PAY / COLLECT ═══════════════ */
+function pay(fromPi, toPi, amount) {
+  if (!G||amount<=0) return;
+  const pl=G.players[fromPi];
+  if (pl.bankrupt) return;
+  if (pl.money<amount) {
+    const got=pl.money;
+    pl.money=0;
+    if (toPi>=0) G.players[toPi].money+=got;
+    else G.freePot+=got;
+    bankruptcy(fromPi,toPi);
+    return;
+  }
+  pl.money-=amount;
+  if (toPi>=0) G.players[toPi].money+=amount;
+  else G.freePot+=amount;
+  updatePlayerCards();
+}
+
+function collect(pi, amount) {
+  if (!G||G.players[pi].bankrupt) return;
+  G.players[pi].money+=amount;
+  updatePlayerCards();
+}
+
+function bankruptcy(pi, creditorPi) {
+  const pl=G.players[pi];
+  pl.bankrupt=true;
+  Object.keys(G.owned).forEach(id=>{
+    if(G.owned[id].owner===pi){
+      if(creditorPi>=0){G.owned[id].owner=creditorPi;G.owned[id].houses=0;}
+      else delete G.owned[id];
+    }
+  });
+  toast(`${pl.name} is BANKRUPT! 💀`,'#ef4444');
+  if (!checkWin()) nextPlayer();
+}
+
+function goToJail(pi) {
+  const pl=G.players[pi];
+  pl.position=JAIL_ID; pl.inJail=true; pl.jailTurns=0;
+  toast(`${pl.name} goes to Jail! ⛓️`,'#ef4444');
+}
+
+/* ═══════════════ CARDS ═══════════════ */
+function drawCard(type) {
+  if (type==='comm') {
+    if (!_commDeck.length) _commDeck=shuffle([...COMM_DECK]);
+    return _commDeck.pop();
+  } else {
+    if (!_chncDeck.length) _chncDeck=shuffle([...CHNC_DECK]);
+    return _chncDeck.pop();
+  }
+}
+
+function applyCard(pi, card) {
+  const pl=G.players[pi];
+  switch(card.action) {
+    case 'gain':
+      collect(pi,card.amount);
+      if (!pl.bankrupt) resolveAction();
+      break;
+    case 'pay':
+      pay(pi,-1,card.amount);
+      if (!pl.bankrupt) resolveAction();
+      break;
+    case 'goto': {
+      const prev=pl.position, tgt=card.target;
+      pl.position=tgt;
+      if (tgt<=prev && tgt!==0) collect(pi,GO_SALARY);
+      else if (tgt===0) collect(pi,GO_SALARY);
+      else if (tgt<prev) collect(pi,GO_SALARY);
+      landOn(pi,tgt);
+      break;
+    }
+    case 'jail':
+      goToJail(pi); resolveAction(); break;
+    case 'jailcard':
+      pl.jailCards++;
+      toast(`${pl.name} got a Get-Out-of-Jail card! 🃏`,'#a78bfa');
+      resolveAction(); break;
+    case 'collect_each':
+      G.players.forEach((_,i)=>{ if(i!==pi&&!G.players[i].bankrupt) pay(i,pi,card.amount); });
+      if (!pl.bankrupt) resolveAction();
+      break;
+    case 'pay_each':
+      G.players.forEach((_,i)=>{ if(i!==pi&&!G.players[i].bankrupt) pay(pi,i,card.amount); });
+      if (!pl.bankrupt) resolveAction();
+      break;
+    case 'back': {
+      pl.position=(pl.position-card.amount+40)%40;
+      landOn(pi,pl.position);
+      break;
+    }
+    case 'nearest_rail': {
+      const pos=pl.position;
+      const rail=RAIL_IDS.find(r=>r>pos)||RAIL_IDS[0];
+      if (rail<pos) collect(pi,GO_SALARY);
+      pl.position=rail;
+      landOn(pi,rail);
+      break;
+    }
+    default:
+      resolveAction();
+  }
+}
+
+/* ═══════════════ WIN CHECK ═══════════════ */
+function checkWin() {
+  if (!G) return false;
+  const active=G.players.filter(p=>!p.bankrupt);
+  if (active.length<=1) {
+    G.over=true; G.phase='gameover';
+    closeAllModals();
+    setTimeout(()=>showWinModal(G.players.indexOf(active[0]||G.players[0])),500);
+    return true;
+  }
+  return false;
+}
+
+/* ═══════════════ BOT ═══════════════ */
+function botTurn() {
+  if (!G||G.over||G.phase!=='roll') return;
+  doRoll();
+}
+
+function botJailAction() {
+  const pl=G.players[G.cur];
+  if (pl.jailCards>0) {
+    pl.jailCards--; pl.inJail=false; pl.jailTurns=0;
+    toast(`${pl.name} used Get-Out-of-Jail card`,'#a78bfa');
+    execRoll();
+  } else if (pl.money>=JAIL_BAIL) {
+    pay(G.cur,-1,JAIL_BAIL);
+    pl.inJail=false; pl.jailTurns=0;
+    toast(`${pl.name} paid bail`,'#f59e0b');
+    execRoll();
+  } else {
+    execRoll(); // Try doubles
+  }
+}
+
+function botBuild() {
+  const pi=G.cur;
+  let built=true;
+  while(built) {
+    built=false;
+    for (const [gid,sqs] of Object.entries(PROP_GROUPS)) {
+      if (!ownsAllGroup(pi,parseInt(gid))) continue;
+      const minH=Math.min(...sqs.map(id=>G.owned[id]?.houses||0));
+      if (minH>=5) continue;
+      const target=sqs.find(id=>canBuildOn(pi,id));
+      if (target!==undefined) { buildHouse(pi,target); built=true; break; }
+    }
+  }
+}
+
+/* ═══════════════ UI ═══════════════ */
+function updateUI() {
+  if (!G) return;
+  const pl=G.players[G.cur];
+  document.getElementById('curDot').style.background=COLORS[G.cur];
+  document.getElementById('curName').textContent=pl.name+(pl.bot?' 🤖':'');
+  document.getElementById('curMoney').textContent=fm(pl.money);
+  const phases={roll:'Roll the dice',done:'Your turn',gameover:'Game over',action:'Waiting…'};
+  document.getElementById('phaseLabel').textContent= pl.inJail&&G.phase==='roll'?'In Jail':phases[G.phase]||'';
+
+  const rollBtn=document.getElementById('rollBtn');
+  const buildBtn=document.getElementById('buildBtn');
+  const endBtn=document.getElementById('endBtn');
+  const isHuman=!pl.bot&&!G.over;
+  const canRoll=isHuman&&G.phase==='roll'&&!G.rolled;
+  const canEnd=isHuman&&G.phase==='done';
+  const canBuild=isHuman&&G.phase==='done'&&hasBuildable(G.cur);
+
+  rollBtn.style.display=canRoll?'':'none';
+  endBtn.style.display=canEnd?'':'none';
+  buildBtn.style.display=canBuild?'':'none';
+
+  if (pl.bot||G.over||G.phase!=='roll') {
+    rollBtn.style.display='none';
+  }
+
+  updatePlayerCards();
+}
+
+function hasBuildable(pi) {
+  return Object.values(PROP_GROUPS).some(sqs=>
+    ownsAllGroup(pi,parseInt(Object.entries(PROP_GROUPS).find(([,v])=>v===sqs)?.[0]||0)) &&
+    sqs.some(id=>canBuildOn(pi,id))
+  );
+}
+
+function updatePlayerCards() {
+  if (!G) return;
+  const wrap=document.getElementById('playerCards');
+  wrap.innerHTML='';
+  G.players.forEach((pl,pi)=>{
+    const ownedCount=Object.values(G.owned).filter(o=>o.owner===pi).length;
+    const d=document.createElement('div');
+    d.className='pcard'+(pi===G.cur?' active':'')+(pl.bankrupt?' bankrupt':'');
+    d.innerHTML=`<div class="pc-top">
+      <div class="pc-dot" style="background:${COLORS[pi]}"></div>
+      <div class="pc-name">${pl.name.split(' ')[0]}${pl.bot?'<span class="bot-badge">BOT</span>':''}</div>
+    </div>
+    <div class="pc-money">${fm(pl.money)}</div>
+    <div class="pc-props">${ownedCount} propert${ownedCount!==1?'ies':'y'}${pl.inJail?' · ⛓Jail':''}</div>`;
+    wrap.appendChild(d);
+  });
+}
+
+/* ═══════════════ MODALS ═══════════════ */
+function closeAllModals() {
+  document.querySelectorAll('.mover').forEach(m=>m.classList.remove('on'));
+}
+
+function showBuyModal(id) {
+  G.phase='action';
+  _pendingBuyId=id;
+  const sq=SQUARES[id];
+  document.getElementById('buyTitle').textContent='Buy '+sq.name.replace('\n',' ')+'?';
+  let html=`<div class="prop-color-bar" style="background:${sq.color||'#888'}"></div>`;
+  if (sq.type==='property') {
+    html+=`<p style="font-size:.82rem;margin-bottom:.6rem">Price: <strong>${fm(sq.price)}</strong> · House cost: ${fm(sq.hc)}</p>`;
+    html+=`<table class="rent-table"><tr><td>Base rent</td><td class="val">${fm(sq.rent[0])}</td></tr>
+      <tr><td>Color group</td><td class="val">${fm(sq.rent[0]*2)}</td></tr>
+      <tr><td>1 House</td><td class="val">${fm(sq.rent[1])}</td></tr>
+      <tr><td>2 Houses</td><td class="val">${fm(sq.rent[2])}</td></tr>
+      <tr><td>3 Houses</td><td class="val">${fm(sq.rent[3])}</td></tr>
+      <tr><td>4 Houses</td><td class="val">${fm(sq.rent[4])}</td></tr>
+      <tr><td>Hotel</td><td class="val">${fm(sq.rent[5])}</td></tr></table>`;
+  } else if (sq.type==='railway') {
+    html+=`<p style="font-size:.82rem;margin-bottom:.6rem">Price: <strong>${fm(sq.price)}</strong></p>`;
+    html+=`<table class="rent-table">
+      <tr><td>Own 1 railway</td><td class="val">${fm(500)}</td></tr>
+      <tr><td>Own 2 railways</td><td class="val">${fm(1000)}</td></tr>
+      <tr><td>Own 3 railways</td><td class="val">${fm(2000)}</td></tr>
+      <tr><td>Own 4 railways</td><td class="val">${fm(4000)}</td></tr></table>`;
+  } else if (sq.type==='utility') {
+    html+=`<p style="font-size:.82rem;margin-bottom:.6rem">Price: <strong>${fm(sq.price)}</strong></p>`;
+    html+=`<table class="rent-table">
+      <tr><td>Own 1 utility</td><td class="val">40× dice roll</td></tr>
+      <tr><td>Own 2 utilities</td><td class="val">100× dice roll</td></tr></table>`;
+  }
+  document.getElementById('buyBody').innerHTML=html;
+  const afford=G.players[G.cur].money>=sq.price;
+  document.getElementById('buyConfirmBtn').disabled=!afford;
+  document.getElementById('buyModal').classList.add('on');
+  updateUI();
+}
+
+function confirmBuy() {
+  if (_pendingBuyId===null) return;
+  buy(G.cur, _pendingBuyId);
+  _pendingBuyId=null;
+  document.getElementById('buyModal').classList.remove('on');
+  resolveAction();
+}
+
+function passBuy() {
+  _pendingBuyId=null;
+  document.getElementById('buyModal').classList.remove('on');
+  resolveAction();
+}
+
+function showRentModal(pi, amount, landlordPi, id) {
+  G.phase='action';
+  const sq=SQUARES[id];
+  const landlord=G.players[landlordPi];
+  document.getElementById('infoTitle').textContent='Rent Due!';
+  document.getElementById('infoBody').innerHTML=`
+    <p>You landed on <strong>${sq.name.replace('\n',' ')}</strong></p>
+    <p>Owned by <span style="color:${COLORS[landlordPi]};font-weight:700">${landlord.name}</span></p>
+    <div class="card-amount" style="color:#ef4444">${fm(amount)}</div>`;
+  _pendingInfoCb=()=>{ pay(pi,landlordPi,amount); };
+  document.getElementById('infoOkBtn').textContent=`Pay ${fm(amount)}`;
+  document.getElementById('infoModal').classList.add('on');
+  updateUI();
+}
+
+function showCardModal(card, onConfirm) {
+  G.phase='action';
+  const isComm=COMM_DECK.includes(card)||(card.text&&!CHNC_DECK.includes(card));
+  document.getElementById('infoTitle').textContent=CHNC_DECK.some(c=>c===card)?'⚡ Chance':'📦 Community Chest';
+  const amt=card.amount;
+  const color=card.action==='gain'||card.action==='collect_each'?'#22c55e':
+               card.action==='pay'||card.action==='pay_each'||card.action==='jail'?'#ef4444':'#a78bfa';
+  document.getElementById('infoBody').innerHTML=`
+    <div class="card-display">
+      <div class="card-text">${card.text}</div>
+      ${amt?`<div class="card-amount" style="color:${color}">${(card.action==='pay'||card.action==='pay_each')?'−':'+'}${fm(amt)}</div>`:''}
+    </div>`;
+  _pendingInfoCb=onConfirm;
+  document.getElementById('infoOkBtn').textContent='OK';
+  document.getElementById('infoModal').classList.add('on');
+  updateUI();
+}
+
+function confirmInfo() {
+  document.getElementById('infoModal').classList.remove('on');
+  if (_pendingInfoCb) { const cb=_pendingInfoCb; _pendingInfoCb=null; cb(); }
+  else resolveAction();
+}
+
+function openJailModal() {
+  G.phase='action';
+  const pl=G.players[G.cur];
+  document.getElementById('jailBody').innerHTML=`
+    <p>You are in Jail. This is turn <strong>${pl.jailTurns+1}/3</strong>.</p>
+    <p style="margin-top:.5rem;font-size:.82rem;color:var(--ink2)">Roll doubles to escape free, pay ₹${JAIL_BAIL} bail, or use a Get-Out-of-Jail card.</p>`;
+  const footer=document.getElementById('jailFooter');
+  const hasCard=pl.jailCards>0;
+  const canPay=pl.money>=JAIL_BAIL;
+  footer.innerHTML=`
+    <button class="btn btn-sec" onclick="jailRoll()" style="flex:1">Try Doubles</button>
+    <button class="btn ${canPay?'btn-primary':'btn-sec'}" onclick="jailPay()" ${canPay?'':'disabled'} style="flex:1">Pay ${fm(JAIL_BAIL)}</button>
+    ${hasCard?`<button class="btn btn-sec" onclick="jailCard()" style="flex:1">Use Card 🃏</button>`:''}`;
+  document.getElementById('jailModal').classList.add('on');
+  updateUI();
+}
+
+function jailRoll() {
+  document.getElementById('jailModal').classList.remove('on');
+  G.rolled=false; // allow rolling
+  execRoll();
+}
+function jailPay() {
+  document.getElementById('jailModal').classList.remove('on');
+  pay(G.cur,-1,JAIL_BAIL);
+  const pl=G.players[G.cur]; pl.inJail=false; pl.jailTurns=0;
+  toast(`${pl.name} paid bail 💰`,'#f59e0b');
+  G.rolled=false;
+  execRoll();
+}
+function jailCard() {
+  document.getElementById('jailModal').classList.remove('on');
+  const pl=G.players[G.cur];
+  pl.jailCards--; pl.inJail=false; pl.jailTurns=0;
+  toast(`${pl.name} used Get-Out-of-Jail card 🃏`,'#a78bfa');
+  G.rolled=false;
+  execRoll();
+}
+
+function openBuildModal() { showBuildModalContent(); document.getElementById('buildModal').classList.add('on'); }
+function closeBuildModal() { document.getElementById('buildModal').classList.remove('on'); }
+
+function showBuildModalContent() {
+  const pi=G.cur;
+  const wrap=document.getElementById('buildBody');
+  wrap.innerHTML='';
+  let anyGroup=false;
+  for (const [gid,sqs] of Object.entries(PROP_GROUPS)) {
+    if (!ownsAllGroup(pi,parseInt(gid))) continue;
+    anyGroup=true;
+    const gName=GROUP_NAMES[gid];
+    const col=SQUARES[sqs[0]].color;
+    let html=`<div class="build-group">
+      <div class="build-group-title" style="color:${col}">${gName}</div>`;
+    sqs.forEach(id=>{
+      const sq=SQUARES[id];
+      const h=G.owned[id]?.houses||0;
+      const buildable=canBuildOn(pi,id);
+      let housesHtml='';
+      for(let i=0;i<4;i++) housesHtml+=`<div class="h-dot ${i<h&&h<5?'filled':i===0&&h===5?'hotel':'empty'}"></div>`;
+      if(h===5) housesHtml='<div class="h-dot hotel"></div>';
+      html+=`<div class="build-item">
+        <div>
+          <div class="build-item-name">${sq.name.replace('\n',' ')}</div>
+          <div class="build-cost">${h===5?'Hotel 🏨':h+' house'+(h!==1?'s':'')+ ' · '+fm(sq.hc)+'/house'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="build-houses">${housesHtml}</div>
+          <button class="btn-build" onclick="buildHouse(${pi},${id});updateBuildModal()" ${buildable&&h<5?'':'disabled'}>+</button>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+    wrap.innerHTML+=html;
+  }
+  if (!anyGroup) wrap.innerHTML='<p style="text-align:center;color:var(--ink2);font-size:.85rem">Own all properties in a color group to build houses.</p>';
+}
+
+function updateBuildModal() {
+  if (document.getElementById('buildModal').classList.contains('on')) showBuildModalContent();
+  updateUI();
+}
+
+function showWinModal(winnerPi) {
+  const winner=G.players[winnerPi];
+  document.getElementById('winEmoji').textContent='🏆';
+  document.getElementById('winTitle').innerHTML=`<span style="color:${COLORS[winnerPi]}">${winner.name}</span> wins!`;
+  const list=document.getElementById('winList');
+  list.innerHTML='';
+  const medals=['🥇','🥈','🥉','4️⃣'];
+  // Sort by money descending
+  const sorted=[...G.players].sort((a,b)=>b.money-a.money);
+  sorted.forEach((pl,i)=>{
+    const pi=G.players.indexOf(pl);
+    const li=document.createElement('li');
+    li.innerHTML=`<div class="pc-dot" style="background:${COLORS[pi]}"></div>
+      <span style="font-size:1.1rem">${medals[i]||'·'}</span>
+      <span style="font-weight:700">${pl.name}</span>
+      <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--accent)">${fm(pl.money)}</span>`;
+    list.appendChild(li);
+  });
+  document.getElementById('winModal').classList.add('on');
+}
+
+function restartGame() {
+  document.getElementById('winModal').classList.remove('on');
+  startGame();
+}
+function goSetup() {
+  closeAllModals();
+  document.getElementById('game').classList.remove('on');
+  document.getElementById('setup').style.display='flex';
+  if (RAF) {cancelAnimationFrame(RAF);RAF=null;}
+}
+
+/* ═══════════════ PROPERTY POPUP (tap to view) ═══════════════ */
+function boardClick(e) {
+  if (!G||G.over) return;
+  const rect=cv.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(BS/rect.width);
+  const my=(e.clientY-rect.top)*(BS/rect.height);
+  let hitId=-1;
+  for(let id=0;id<40;id++){
+    const r=getRect(id);
+    if(r&&mx>=r.x&&mx<r.x+r.w&&my>=r.y&&my<r.y+r.h){hitId=id;break;}
+  }
+  if(hitId>=0) showPropPopup(hitId);
+}
+
+let _popupTimer=null;
+function showPropPopup(id) {
+  const sq=SQUARES[id];
+  const popup=document.getElementById('propPopup');
+  const inner=document.getElementById('ppInner');
+  let html='';
+  if(sq.type==='property'){
+    const o=G.owned[id];
+    const ownerStr=o?`<span style="color:${COLORS[o.owner]};font-weight:700">${G.players[o.owner].name}</span>`:
+      `<span style="color:var(--ink2)">Unowned (${fm(sq.price)})</span>`;
+    const h=o?.houses||0;
+    const rentNow=o?calcRent(id,G.lastDice||7):sq.rent[0];
+    html=`<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+      <div style="width:14px;height:14px;border-radius:3px;background:${sq.color}"></div>
+      <strong style="font-size:.9rem">${sq.name.replace('\n',' ')}</strong>
+    </div>
+    <div style="font-size:.78rem;color:var(--ink2)">${ownerStr} · ${h===5?'Hotel 🏨':h>0?h+' house'+(h!==1?'s':''):GROUP_NAMES[sq.group]}</div>
+    <div style="font-size:.8rem;margin-top:.35rem;font-family:'JetBrains Mono',monospace;color:var(--accent)">
+      Current rent: ${fm(rentNow)}</div>`;
+  } else if(sq.type==='railway'){
+    const o=G.owned[id];
+    html=`<strong style="font-size:.9rem">${sq.name}</strong>
+    <div style="font-size:.78rem;color:var(--ink2)">${o?`Owned by ${G.players[o.owner].name} · ${fm(calcRent(id,0))} rent`:`Unowned · ${fm(sq.price)}`}</div>`;
+  } else {
+    html=`<strong style="font-size:.9rem">${sq.name.replace('\n',' ')}</strong>
+    ${sq.amount?`<div style="font-size:.78rem;color:#ef4444">Pay ${fm(sq.amount)}</div>`:''}`;
+  }
+  inner.innerHTML=html+'<div style="font-size:.68rem;color:var(--ink2);margin-top:.35rem;text-align:right">tap anywhere to dismiss</div>';
+  popup.classList.add('on');
+  clearTimeout(_popupTimer);
+  _popupTimer=setTimeout(()=>popup.classList.remove('on'),4000);
+  popup.onclick=()=>{popup.classList.remove('on');clearTimeout(_popupTimer);};
+}
+
+/* ═══════════════ TOAST ═══════════════ */
+function toast(msg, color) {
+  const box=document.getElementById('tbox');
+  const t=document.createElement('div');
+  t.className='tt'; t.textContent=msg;
+  if(color) t.style.background=color==='#22c55e'?'#14532d':color==='#ef4444'?'#7f1d1d':
+    color==='#f59e0b'?'#78350f':color==='#a78bfa'?'#4c1d95':'#1a1814';
+  box.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .22s';t.style.opacity='0';setTimeout(()=>t.remove(),250);},2400);
+}
+
+/* ═══════════════ INIT ═══════════════ */
+document.addEventListener('DOMContentLoaded',()=>{
+  initCommon();
+  document.getElementById('setup').style.display='flex';
+});
+</script>
+</body>
+</html>
